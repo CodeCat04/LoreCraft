@@ -1,0 +1,16 @@
+{
+  "a recent change": "un cambio reciente",
+  "If you don't save, your changes are kept in Backups for 14 days.": "Si no guardas, tus cambios se conservan en Copias de seguridad durante 14 días.",
+  "Keep editing": "Seguir editando",
+  "LoreCraft could not store: {list}.": "LoreCraft no pudo guardar: {list}.",
+  "LoreCraft could not store: {list}. Nothing was changed, and your text is still on screen.": "LoreCraft no pudo guardar: {list}. No se cambió nada y tu texto sigue en pantalla.",
+  "Not saved yet, trying again": "Aún sin guardar, se vuelve a intentar",
+  "Reason: {reason}": "Motivo: {reason}",
+  "Some changes could not be stored": "Algunos cambios no se pudieron guardar",
+  "the page “{title}”": "la página «{title}»",
+  "the scene “{title}”": "la escena «{title}»",
+  "the talk page of “{title}”": "la página de discusión de «{title}»",
+  "the title of “{title}”": "el título de «{title}»",
+  "This text uses something this version of LoreCraft can't show. Update LoreCraft to edit it. Nothing here will be changed.": "Este texto usa algo que esta versión de LoreCraft no puede mostrar. Actualiza LoreCraft para editarlo. Aquí no se cambiará nada.",
+  "Your text is still on screen. Nothing was saved or closed.": "Tu texto sigue en pantalla. No se guardó ni se cerró nada."
+}

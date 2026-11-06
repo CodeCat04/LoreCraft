@@ -1,0 +1,162 @@
+/*
+ * Comments and to-dos. Chrome is in rem, so the interface size scales it. Positions beside
+ * the text are in em, because they follow the writing-text size like the text itself.
+ */
+
+/* ---- Highlights in the text ---------------------------------------------- */
+.comment-range {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  border-radius: 0.125em;
+}
+.comment-range.is-overlap { background: color-mix(in srgb, var(--warning) 32%, transparent); }
+.comment-range.is-active {
+  background: color-mix(in srgb, var(--warning) 45%, transparent);
+  box-shadow: 0 0.08em 0 0 var(--warning);
+}
+.comment-pending { background: var(--selection); border-radius: 0.125em; }
+.is-focus-mode .comment-range, .is-focus-mode .comment-range.is-active { background: none; box-shadow: none; }
+
+/* ---- The column ---------------------------------------------------------- */
+/* The editor is what the column measures from. */
+.editor { position: relative; }
+
+.comment-margin[data-mode='beside'] {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  width: 0;
+  height: 0;
+  z-index: 3;
+}
+.comment-margin[data-mode='stacked'] {
+  margin-top: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 0.5rem;
+}
+.comment-margin-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* A manuscript page moves over to make room, with the page and comments centered as one. */
+.write-page:has(.comment-margin[data-mode='beside']) {
+  max-width: min(48em, calc(100% - 18rem));
+  margin-left: max(0rem, calc((100% - 48em - 18rem) / 2));
+  margin-right: auto;
+}
+.write-page .comment-margin[data-mode='beside'] { left: calc(100% + 3em + 0.75rem); }
+@container (max-width: 52rem) {
+  .write-page .comment-margin[data-mode='beside'] { left: calc(100% + 1.25em + 0.75rem); }
+}
+
+/* An article narrows its text, and the infobox stays beside it. */
+.wiki-body:has(.comment-margin[data-mode='beside']) { padding-right: 17rem; }
+.wiki-body .comment-margin[data-mode='beside'] { left: calc(100% + 1rem); }
+
+/* ---- One comment --------------------------------------------------------- */
+.comment-card {
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 0.1875rem solid var(--warning);
+  border-radius: 0.25rem;
+  padding: 0.375rem 0.5rem;
+}
+.comment-margin[data-mode='beside'] .comment-card { position: absolute; left: 0; width: 15rem; }
+.comment-card.is-active { border-color: var(--warning); box-shadow: var(--shadow); z-index: 4; }
+.comment-card.is-done { opacity: 0.7; }
+.comment-card.is-done .comment-card-body { text-decoration: line-through; }
+.comment-card.is-removed { border-left-color: var(--text-faint); }
+.comment-card-head { display: flex; align-items: center; gap: 0.375rem; }
+.comment-card-author { font-weight: 600; }
+.comment-card-time { color: var(--text-faint); font-size: 0.75rem; }
+.comment-card-tick { margin: 0; }
+.comment-card-removed { margin: 0.25rem 0 0; color: var(--text-muted); font-style: italic; overflow-wrap: anywhere; }
+.comment-card-body {
+  display: block;
+  width: 100%;
+  margin-top: 0.125rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.comment-card:not(.is-active) .comment-card-body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  overflow: hidden;
+}
+.comment-card-input { width: 100%; margin-top: 0.25rem; font-size: 0.8125rem; }
+/* Hidden rather than absent, so a card keeps its height and cannot grow over the next one. */
+.comment-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.625rem;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  visibility: hidden;
+}
+.comment-card.is-active .comment-card-actions,
+.comment-card:hover .comment-card-actions,
+.comment-card:focus-within .comment-card-actions,
+.comment-margin[data-mode='stacked'] .comment-card-actions { visibility: visible; }
+
+/* ---- Writing one --------------------------------------------------------- */
+.comment-composer { width: min(22rem, calc(100vw - 2rem)); padding: 0.5rem; display: grid; gap: 0.375rem; }
+.comment-composer-input { min-height: 3rem; width: 100%; }
+.comment-composer-foot { display: flex; align-items: center; gap: 0.375rem; }
+.comment-composer-todo { display: inline-flex; align-items: center; gap: 0.25rem; }
+.comment-composer-spacer { flex: 1; }
+
+/* ---- The project-wide list ------------------------------------------------ */
+.notes-intro { margin: 0 0 1rem; }
+.notes-filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1rem; }
+.notes-filter { display: block; }
+.notes-filter .select, .notes-filter .input { height: 2.375rem; }
+.notes-filter-grow { flex: 1; min-width: 12rem; }
+.notes-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.notes-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+}
+.notes-item.is-closed { opacity: 0.75; }
+.notes-item-tick { margin: 0.25rem 0 0; }
+.notes-item-main { flex: 1; min-width: 0; }
+.notes-item-body {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.notes-item-body:hover { color: var(--link-hover); }
+.notes-item-quote, .notes-item-removed { margin: 0.25rem 0 0; font-size: 0.8125rem; color: var(--text-muted); overflow-wrap: anywhere; }
+.notes-item-removed { font-style: italic; color: var(--warning); }
+.notes-item-meta { margin: 0.25rem 0 0; font-size: 0.75rem; color: var(--text-faint); }
+.notes-item-badge { margin-left: 0.375rem; }
+.notes-item-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: flex-end; }

@@ -1,0 +1,10 @@
+{
+  "In the trash": "Im Papierkorb",
+  "in the trash": "im Papierkorb",
+  "Deleted {relationship}.": "{relationship} wurde gelöscht.",
+  "Could not add the relationship back: {error}": "Die Beziehung konnte nicht wieder hinzugefügt werden: {error}",
+  "Add to the family of {title}": "Zur Familie von {title} hinzufügen",
+  "Add parent": "Elternteil hinzufügen",
+  "Add child": "Kind hinzufügen",
+  "Add spouse": "Ehepartner hinzufügen"
+}

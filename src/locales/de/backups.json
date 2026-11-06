@@ -1,0 +1,13 @@
+{
+  "Changes you chose not to save, {time}": "Änderungen, die Sie nicht speichern wollten, {time}",
+  "kept until {date}": "aufbewahrt bis {date}",
+  "Before upgrading to LoreCraft {version}, {time}": "Vor dem Upgrade auf LoreCraft {version}, {time}",
+  "always kept": "wird immer aufbewahrt",
+  "When you close without saving, your changes are kept here for 14 days.": "Wenn Sie ohne Speichern schließen, werden Ihre Änderungen hier 14 Tage lang aufbewahrt.",
+  "It goes to Backups, in the File menu, where you can get it back for 14 days.": "Sie kommen in die Sicherungen im Menü Datei und lassen sich dort 14 Tage lang zurückholen.",
+  "Moved to Backups. You can get it back from there for 14 days.": "In die Sicherungen verschoben. Dort können Sie sie 14 Tage lang zurückholen.",
+  "Your settings file could not be read, so LoreCraft went back to its backup copy. The unreadable file is kept as {file}.": "Ihre Einstellungsdatei war nicht lesbar, daher hat LoreCraft die Sicherungskopie verwendet. Die unlesbare Datei wird als {file} aufbewahrt.",
+  "Your settings file could not be read, so LoreCraft went back to its backup copy.": "Ihre Einstellungsdatei war nicht lesbar, daher hat LoreCraft die Sicherungskopie verwendet.",
+  "Your settings file could not be read and had no backup, so LoreCraft is using the default settings. The unreadable file is kept as {file}.": "Ihre Einstellungsdatei war nicht lesbar und hatte keine Sicherung, daher verwendet LoreCraft die Standardeinstellungen. Die unlesbare Datei wird als {file} aufbewahrt.",
+  "Your settings file could not be read and had no backup, so LoreCraft is using the default settings.": "Ihre Einstellungsdatei war nicht lesbar und hatte keine Sicherung, daher verwendet LoreCraft die Standardeinstellungen."
+}

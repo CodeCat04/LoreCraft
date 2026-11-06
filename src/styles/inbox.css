@@ -1,0 +1,73 @@
+/* The idea inbox: the capture box, and the screen that lists what was captured. */
+
+/* A dialog underneath, but light enough to feel like part of what is on screen. */
+.dialog-backdrop:has(.inbox-capture) {
+  place-items: start center;
+  padding-top: 16vh;
+  background: transparent;
+}
+.dialog:has(.inbox-capture) {
+  width: min(30rem, 100%);
+  padding: 0.625rem 0.75rem;
+}
+.inbox-capture-title {
+  margin-bottom: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+.inbox-capture-box {
+  display: block;
+  width: 100%;
+  resize: none;
+  field-sizing: content;
+  min-height: 3rem;
+  max-height: 14rem;
+}
+.inbox-capture .field-error { margin: 0.25rem 0 0; }
+.inbox-capture .field-hint { margin-top: 0.25rem; }
+
+.inbox { max-width: 52rem; }
+.inbox-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 1rem 0 0.75rem;
+}
+.inbox-tabs { display: flex; gap: 0.25rem; }
+.inbox-tabs .btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.inbox-list { list-style: none; display: grid; gap: 0.5rem; }
+.inbox-item {
+  padding: 0.625rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+}
+.inbox-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.inbox-item.is-done .inbox-text { color: var(--text-muted); }
+.inbox-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+.inbox-source { font-size: inherit; }
+.inbox-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+.inbox-edit-box {
+  display: block;
+  width: 100%;
+  resize: none;
+  field-sizing: content;
+  min-height: 3rem;
+  max-height: 20rem;
+}

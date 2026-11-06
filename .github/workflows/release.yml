@@ -1,0 +1,218 @@
+name: Release
+
+# Pushing a tag such as v1.0.0 builds installers for every platform and attaches them, with
+# SHA256SUMS.txt, to one draft GitHub release, which stays private until someone publishes it.
+# Running it by hand is a dry run: the same builds, kept as workflow artifacts for a few days,
+# and no release. Use it to try macOS before tagging. See docs/RELEASING.md.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: What to build.
+        type: choice
+        default: all
+        options: [all, windows, linux]
+
+permissions:
+  contents: read
+
+# Never cancel a release part way through its uploads.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Checks the version and makes the draft first, so builds finishing at the same moment cannot
+  # each start a draft of their own, and a wrong tag fails before any installer is built.
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      release-id: ${{ steps.draft.outputs.id }}
+      matrix: ${{ steps.platforms.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Check that the tag matches the version
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          if [ -n "$TAG" ]; then
+            node scripts/check-version.mjs --tag "$TAG"
+          else
+            node scripts/check-version.mjs
+          fi
+
+      - name: Choose the platforms
+        id: platforms
+        env:
+          CHOSEN: ${{ inputs.platforms || 'all' }}
+        run: |
+          # Linux is built on the oldest Ubuntu with WebKitGTK 4.1, because the .deb and the
+          # AppImage only run on systems with at least the glibc they were built against.
+          all='[
+            {"name": "windows", "os": "windows-latest", "args": ""},
+            {"name": "linux", "os": "ubuntu-22.04", "args": ""}
+          ]'
+          matrix=$(jq -c --arg chosen "$CHOSEN" 'map(select($chosen == "all" or (.name | startswith($chosen))))' <<< "$all")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Building: $(jq -r 'map(.name) | join(", ")' <<< "$matrix")" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Make the draft release
+        id: draft
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BODY: |
+            See the assets below to install. SHA256SUMS.txt lists each file's SHA-256, to check a download with `sha256sum -c SHA256SUMS.txt --ignore-missing` or PowerShell's `Get-FileHash`.
+
+            These builds are not code signed yet. Windows may show a SmartScreen warning: choose "More info", then "Run anyway".
+        run: |
+          # Running the workflow again for this tag reuses its draft.
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+            --jq "map(select(.draft and .tag_name == \"$GITHUB_REF_NAME\")) | first | .id // empty")
+          if [ -z "$id" ]; then
+            id=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$GITHUB_REF_NAME" \
+              -f name="LoreCraft $GITHUB_REF_NAME" \
+              -f body="$BODY" \
+              -F draft=true \
+              --jq .id)
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
+    name: build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    strategy:
+      # One platform failing should not throw away the installers the others made.
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # From https://v2.tauri.app/start/prerequisites/, plus libdbus for the credential store,
+      # and patchelf and xdg-utils for making an AppImage.
+      - name: Install the Linux build packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev pkg-config patchelf xdg-utils
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.name }}
+          # A cache saved by a tag can only be used by that tag again. A dry run from main saves
+          # one that the next tag can use.
+          save-if: ${{ github.ref_type != 'tag' }}
+
+      - run: npm ci
+
+      # With no release and no tag, as in a dry run, tauri-action only builds.
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.plan.outputs.release-id }}
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseDraft: true
+          args: ${{ matrix.args }}
+
+      # The portable zip, made from the same release build as the installer.
+      - name: Make the portable zip
+        if: runner.os == 'Windows'
+        run: npm run portable
+
+      # Before the checksums job, so SHA256SUMS.txt covers it too.
+      - name: Add the portable zip to the draft
+        if: runner.os == 'Windows' && github.ref_type == 'tag'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.plan.outputs.release-id }}
+        run: |
+          for zip in src-tauri/target/release/bundle/portable/*.zip; do
+            name=$(basename "$zip")
+            # Left by an earlier run for this tag.
+            old=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --paginate --jq ".[] | select(.name == \"$name\") | .id")
+            if [ -n "$old" ]; then gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$old"; fi
+            curl --fail-with-body --silent --show-error -X POST \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H 'Content-Type: application/zip' \
+              --data-binary @"$zip" \
+              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=$name" > /dev/null
+          done
+
+      - name: Keep the installers from this dry run
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7
+        with:
+          name: lorecraft-${{ matrix.name }}
+          path: |
+            src-tauri/target/**/release/bundle/nsis/*.exe
+            src-tauri/target/**/release/bundle/portable/*.zip
+            src-tauri/target/**/release/bundle/dmg/*.dmg
+            src-tauri/target/**/release/bundle/deb/*.deb
+            src-tauri/target/**/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          # Artifacts count against the private repository's storage, so they do not stay long.
+          retention-days: 5
+
+  # Hashes the files as they are on the release, so the sums match what people download.
+  checksums:
+    needs: [plan, build]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Add SHA256SUMS.txt to the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.plan.outputs.release-id }}
+        run: |
+          mkdir assets
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --jq '.[] | "\(.id)\t\(.name)"' > assets.tsv
+          while IFS=$'\t' read -r id name; do
+            if [ "$name" = SHA256SUMS.txt ]; then
+              # Left by an earlier run for this tag. It is made again below.
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"
+            else
+              gh api -H 'Accept: application/octet-stream' "repos/$GITHUB_REPOSITORY/releases/assets/$id" > "assets/$name"
+            fi
+          done < assets.tsv
+          if [ -z "$(ls assets)" ]; then
+            echo "::error::The draft release has no files to hash."
+            exit 1
+          fi
+          (cd assets && sha256sum -- *) > SHA256SUMS.txt
+          cat SHA256SUMS.txt >> "$GITHUB_STEP_SUMMARY"
+          curl --fail-with-body --silent --show-error -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H 'Content-Type: text/plain' \
+            --data-binary @SHA256SUMS.txt \
+            "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=SHA256SUMS.txt" > /dev/null

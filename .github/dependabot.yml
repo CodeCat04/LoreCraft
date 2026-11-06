@@ -1,0 +1,38 @@
+# Weekly updates, gathered into as few pull requests as is safe: one per ecosystem for every
+# minor and patch update, and one per major update, since those can break things. They go to
+# main, like any other change, and each waits a week after its release, so a bad release is
+# usually withdrawn before it arrives here.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: main
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      npm:
+        update-types: [minor, patch]
+
+  - package-ecosystem: cargo
+    directory: /src-tauri
+    target-branch: main
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      cargo:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: main
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ['*']

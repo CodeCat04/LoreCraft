@@ -1,0 +1,14 @@
+{
+  "bundle": {
+    "targets": ["deb", "appimage"],
+    "linux": {
+      "deb": {
+        "depends": ["libdbus-1-3"],
+        "desktopTemplate": "linux/lorecraft.desktop",
+        "files": {
+          "/usr/share/mime/packages/lorecraft.xml": "linux/lorecraft-mime.xml"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+name: Bug report
+description: Something in LoreCraft does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting this. Issues are public, so please do not paste your own lore or manuscript: a small made-up example is enough.
+        A security problem should be reported privately instead. See [SECURITY.md](https://github.com/CodeCat04/LoreCraft/blob/main/SECURITY.md).
+
+  - type: input
+    id: version
+    attributes:
+      label: LoreCraft version
+      description: Help > About shows it.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Choose Help > "Copy diagnostics" in LoreCraft and paste the result here. It gives the version, build, system and web view version, and holds no paths or writing.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected to happen instead. Screenshots help.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen
+      placeholder: |
+        1. Open a page.
+        2. ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: lost-work
+    attributes:
+      label: Was any writing lost?
+      options:
+        - "No"
+        - "Yes"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: Optional. Help > "Open log folder" shows the logs, and `lorebook.log` is the newest. They hold event names and codes, never your writing.
+      render: text

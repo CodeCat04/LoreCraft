@@ -1,0 +1,13 @@
+{
+  "Changes you chose not to save, {time}": "Modifications que vous avez choisi de ne pas enregistrer, {time}",
+  "kept until {date}": "conservée jusqu’au {date}",
+  "Before upgrading to LoreCraft {version}, {time}": "Avant la mise à niveau vers LoreCraft {version}, {time}",
+  "always kept": "toujours conservée",
+  "When you close without saving, your changes are kept here for 14 days.": "Si vous fermez sans enregistrer, vos modifications sont conservées ici pendant 14 jours.",
+  "It goes to Backups, in the File menu, where you can get it back for 14 days.": "Il ira dans Sauvegardes, dans le menu Fichier, où vous pourrez le récupérer pendant 14 jours.",
+  "Moved to Backups. You can get it back from there for 14 days.": "Déplacé dans Sauvegardes. Vous pouvez le récupérer depuis là pendant 14 jours.",
+  "Your settings file could not be read, so LoreCraft went back to its backup copy. The unreadable file is kept as {file}.": "Votre fichier de paramètres n’a pas pu être lu, donc LoreCraft a repris sa copie de sauvegarde. Le fichier illisible est conservé sous {file}.",
+  "Your settings file could not be read, so LoreCraft went back to its backup copy.": "Votre fichier de paramètres n’a pas pu être lu, donc LoreCraft a repris sa copie de sauvegarde.",
+  "Your settings file could not be read and had no backup, so LoreCraft is using the default settings. The unreadable file is kept as {file}.": "Votre fichier de paramètres n’a pas pu être lu et n’avait pas de sauvegarde, donc LoreCraft utilise les paramètres par défaut. Le fichier illisible est conservé sous {file}.",
+  "Your settings file could not be read and had no backup, so LoreCraft is using the default settings.": "Votre fichier de paramètres n’a pas pu être lu et n’avait pas de sauvegarde, donc LoreCraft utilise les paramètres par défaut."
+}

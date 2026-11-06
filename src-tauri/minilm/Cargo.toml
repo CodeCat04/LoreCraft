@@ -1,0 +1,10 @@
+[package]
+name = "lorecraft-minilm"
+version = "0.1.0"
+description = "A small BERT sentence encoder for the CPU, with no dependencies."
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+
+[lib]
+path = "src/lib.rs"

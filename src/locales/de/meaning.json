@@ -1,0 +1,10 @@
+{
+  "For example, the night the bridge fell": "Zum Beispiel die Nacht, in der die Brücke einstürzte",
+  "Search": "Suchen",
+  "Search by meaning is off. It finds passages by what they say, even when they share no words with your search.": "Die Suche nach Bedeutung ist aus. Sie findet Passagen nach ihrem Inhalt, auch wenn sie kein Wort mit deiner Suche teilen.",
+  "Search by meaning is off. Turn it on here first.": "Die Suche nach Bedeutung ist aus. Schalte sie zuerst hier ein.",
+  "Search by meaning…": "Nach Bedeutung suchen…",
+  "The index is kept in the project file and adds about 9 MB for a 100,000-word book. Building it does not count as a change to save.": "Der Index wird in der Projektdatei gespeichert und braucht etwa 9 MB für ein Buch mit 100.000 Wörtern. Sein Aufbau zählt nicht als zu speichernde Änderung.",
+  "Turn on search by meaning…": "Suche nach Bedeutung einschalten…",
+  "What are you looking for?": "Wonach suchst du?"
+}

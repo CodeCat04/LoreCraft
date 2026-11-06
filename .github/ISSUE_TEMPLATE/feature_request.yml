@@ -1,0 +1,28 @@
+name: Feature request
+description: An idea that would make LoreCraft better for your writing or worldbuilding.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        [docs/PLAN.md](https://github.com/CodeCat04/LoreCraft/blob/main/docs/PLAN.md) lists what is planned already, and what was decided against.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The task, and what gets in the way today. For example, "I keep losing track of which characters know a secret."
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you picture it working. Rough is fine.
+
+  - type: textarea
+    id: today
+    attributes:
+      label: What you do now instead
+      description: A workaround, another app, or nothing.

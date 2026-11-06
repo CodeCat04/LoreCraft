@@ -1,0 +1,99 @@
+/*
+ * Prose checks. The panel is chrome, so it is in rem. Highlights sit on the writer's text
+ * in em, and use shadows rather than borders so that nothing in the text moves.
+ */
+
+/* ---- Highlights in the text ---------------------------------------------- */
+.prose-hit { --prose-color: var(--accent); box-shadow: inset 0 -0.14em 0 0 var(--prose-color); }
+.prose-hit-overused { --prose-color: var(--warning); }
+.prose-hit-repeated { --prose-color: var(--link-red); }
+.prose-hit-doubled { --prose-color: var(--danger); background: var(--del-bg); }
+.prose-hit-adverb { --prose-color: var(--accent); }
+.prose-hit-filter { --prose-color: var(--success); }
+.prose-hit-passive { --prose-color: var(--text-faint); }
+.prose-hit-longSentence { box-shadow: none; background: color-mix(in srgb, var(--warning) 14%, transparent); }
+.prose-current { background: var(--selection); box-shadow: 0 0 0 0.1em var(--accent); border-radius: 0.1em; }
+.prose-reading { background: color-mix(in srgb, var(--accent) 28%, transparent); border-radius: 0.1em; }
+.is-focus-mode .prose-hit { box-shadow: none; background: none; }
+
+/* ---- The panel ------------------------------------------------------------ */
+.prose-panel {
+  flex: 0 0 19rem;
+  width: 19rem;
+  overflow-y: auto;
+  padding: 0.75rem 0.875rem 2rem;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+@container (max-width: 38rem) {
+  .prose-panel { position: absolute; top: 0; right: 0; bottom: 0; z-index: 12; box-shadow: var(--shadow); }
+}
+.prose-panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem; }
+.prose-title { margin: 0; font-size: 0.9375rem; font-weight: 600; }
+.prose-scopes { display: flex; gap: 0.125rem; margin-bottom: 0.5rem; }
+.prose-section { margin-top: 0.75rem; padding-top: 0.625rem; border-top: 1px solid var(--border); }
+.prose-heading { margin: 0 0 0.375rem; font-size: 0.8125rem; font-weight: 600; }
+.prose-read-hint { margin: 0 0 0.5rem; }
+
+.prose-figures { display: grid; gap: 0.125rem; margin: 0; }
+.prose-figures > div { display: flex; justify-content: space-between; gap: 0.75rem; }
+.prose-figures dt { color: var(--text-muted); }
+.prose-figures dd { margin: 0; text-align: right; }
+
+.prose-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.125rem; }
+.prose-check { display: flex; align-items: center; gap: 0.375rem; min-height: 1.75rem; }
+.prose-check-label { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: 0.375rem; line-height: 1.25; }
+.prose-check-label input { margin: 0; flex: none; }
+.prose-check-step { color: var(--text-faint); font-size: 0.75rem; white-space: nowrap; }
+.prose-check-count { flex: none; min-width: 2.5rem; font-variant-numeric: tabular-nums; }
+
+/* The same colors as the highlights, so a tick and its marks are plainly connected. */
+.prose-swatch { flex: none; width: 0.75rem; height: 0.1875rem; background: var(--accent); border-radius: 0.0625rem; }
+.prose-swatch-overused { background: var(--warning); }
+.prose-swatch-repeated { background: var(--link-red); }
+.prose-swatch-doubled { background: var(--danger); }
+.prose-swatch-adverb { background: var(--accent); }
+.prose-swatch-filter { background: var(--success); }
+.prose-swatch-passive { background: var(--text-faint); }
+.prose-swatch-longSentence { height: 0.75rem; background: color-mix(in srgb, var(--warning) 40%, transparent); }
+
+.prose-terms { margin-top: 0.5rem; }
+.prose-terms > summary { cursor: pointer; color: var(--text-muted); }
+.prose-term-list { list-style: none; margin: 0.25rem 0 0; padding: 0; }
+.prose-term {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.0625rem 0.25rem;
+  border: none;
+  border-radius: 0.1875rem;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.prose-term:hover, .prose-term:focus-visible { background: var(--surface-2); }
+.prose-term-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.prose-term-count { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* ---- Sentence lengths: bars of one hue, on a shared baseline ---------------- */
+.prose-lengths { width: 100%; border-collapse: separate; border-spacing: 0 0.125rem; }
+.prose-lengths caption { text-align: left; font-size: 0.8125rem; font-weight: 600; margin-bottom: 0.25rem; }
+.prose-lengths th[scope='row'] { width: 4.5rem; padding: 0 0.5rem 0 0; font-weight: 400; color: var(--text-muted); white-space: nowrap; text-align: left; }
+.prose-lengths-bar-cell { padding: 0; }
+.prose-lengths-bar {
+  display: block;
+  height: 0.625rem;
+  min-width: 0.25rem;
+  background: var(--accent);
+  border-radius: 0 0.25rem 0.25rem 0;
+}
+.prose-lengths-count { width: 2.75rem; padding: 0 0 0 0.5rem; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+.prose-lengths tr:hover .prose-lengths-bar { background: var(--accent-hover); }
+
+.prose-field { margin-bottom: 0.375rem; }
+.prose-select { width: 100%; }
+.prose-read-buttons { display: flex; gap: 0.25rem; margin-top: 0.375rem; }

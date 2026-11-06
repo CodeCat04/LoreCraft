@@ -1,0 +1,19 @@
+{
+  "After that, one version a week is kept.": "Ensuite, une version par semaine est conservée.",
+  "Could not read the history settings: {reason}": "Impossible de lire les réglages de l'historique : {reason}",
+  "Could not save the history settings: {reason}": "Impossible d'enregistrer les réglages de l'historique : {reason}",
+  "Days that keep every version": "Jours où toutes les versions sont conservées",
+  "Days that keep one version a day": "Jours où une version par jour est conservée",
+  "Each page and scene keeps earlier versions you can go back to. To save space, old versions can be thinned out. Snapshots taken before an import, merge, split or restore, and checkpoints you make yourself, are always kept.": "Chaque page et chaque scène gardent des versions antérieures auxquelles vous pouvez revenir. Pour gagner de la place, les anciennes versions peuvent être allégées. Les instantanés pris avant une importation, une fusion, une division ou une restauration, et les points de contrôle que vous créez vous-même, sont toujours conservés.",
+  "Enter a whole number from {min} to {max}.": "Saisissez un nombre entier de {min} à {max}.",
+  "Every version is kept for ever.": "Toutes les versions sont conservées pour toujours.",
+  "Every version younger than this is kept.": "Toute version plus récente que cela est conservée.",
+  "For each page and scene, however old they are.": "Pour chaque page et chaque scène, quel que soit leur âge.",
+  "History for this project": "Historique de ce projet",
+  "History settings saved.": "Réglages de l'historique enregistrés.",
+  "Newest versions always kept": "Versions les plus récentes toujours conservées",
+  "Open a project to change how long it keeps its history.": "Ouvrez un projet pour choisir combien de temps il garde son historique.",
+  "Save history settings": "Enregistrer les réglages de l'historique",
+  "Thin out old history": "Alléger l'ancien historique",
+  "This must be at least the days that keep every version.": "Ce nombre doit être au moins égal aux jours où toutes les versions sont conservées."
+}

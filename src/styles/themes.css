@@ -1,0 +1,416 @@
+/*
+ * Design tokens. Each theme defines every token in both modes. Components must use
+ * these rather than literal colors, so that every variant keeps working. themes.test.ts
+ * checks that each one defines them all, and that text stays readable.
+ */
+
+:root {
+  --ui-scale: 1;
+  --content-scale: 1;
+
+  --font-ui: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-heading: 'Libertinus Serif', Georgia, 'Times New Roman', serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-prose: 'Source Serif 4', Georgia, serif;
+  --font-mono: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+}
+
+/* ---- Encyclopedia --------------------------------------------------------- */
+:root[data-theme='encyclopedia'][data-mode='dark'] {
+  --bg: #101418;
+  --bg-sunken: #0b0e11;
+  --surface: #1a1f25;
+  --surface-2: #232931;
+  --surface-3: #2d343d;
+  --border: #30373f;
+  --border-strong: #4a535e;
+  --text: #eaecf0;
+  --text-muted: #a2a9b1;
+  --text-faint: #899199;
+  --link: #88a3e8;
+  --link-hover: #b0c3f2;
+  --link-red: #fd7865;
+  --accent: #6d8fe0;
+  --accent-hover: #88a3e8;
+  --accent-text: #0d1117;
+  --danger: #f97066;
+  --success: #4cc38a;
+  --warning: #e5b567;
+  --ins-bg: #173a2b;
+  --ins-text: #8ce2b6;
+  --del-bg: #45201f;
+  --del-text: #f9a59c;
+  --selection: #2f4a80;
+  --shadow: 0 8px 28px rgb(0 0 0 / 55%);
+  --infobox-bg: #1a1f25;
+  --color-scheme: dark;
+}
+:root[data-theme='encyclopedia'][data-mode='light'] {
+  --bg: #ffffff;
+  --bg-sunken: #f6f6f6;
+  --surface: #f8f9fa;
+  --surface-2: #eaecf0;
+  --surface-3: #dcdfe3;
+  --border: #c8ccd1;
+  --border-strong: #a2a9b1;
+  --text: #202122;
+  --text-muted: #54595d;
+  --text-faint: #656a6f;
+  --link: #3366cc;
+  --link-hover: #2a4b8d;
+  --link-red: #bf3c2c;
+  --accent: #3366cc;
+  --accent-hover: #2a4b8d;
+  --accent-text: #ffffff;
+  --danger: #bf3c2c;
+  --success: #127761;
+  --warning: #9a5b00;
+  --ins-bg: #d5fdf4;
+  --ins-text: #0a5a48;
+  --del-bg: #fee7e6;
+  --del-text: #8e2a1d;
+  --selection: #c5d8ff;
+  --shadow: 0 8px 28px rgb(0 0 0 / 16%);
+  --infobox-bg: #f8f9fa;
+  --color-scheme: light;
+}
+
+/* ---- Parchment ------------------------------------------------------------ */
+:root[data-theme='parchment'] {
+  --font-ui: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-heading: 'EB Garamond', Georgia, serif;
+  --font-body: 'EB Garamond', Georgia, serif;
+  --font-prose: 'EB Garamond', Georgia, serif;
+}
+:root[data-theme='parchment'][data-mode='dark'] {
+  --bg: #1d1812;
+  --bg-sunken: #16120d;
+  --surface: #272017;
+  --surface-2: #32291e;
+  --surface-3: #3e3426;
+  --border: #443929;
+  --border-strong: #63543d;
+  --text: #ece1cc;
+  --text-muted: #b8a98f;
+  --text-faint: #9d917c;
+  --link: #e0b56f;
+  --link-hover: #f0cd93;
+  --link-red: #ee8a68;
+  --accent: #cf9f55;
+  --accent-hover: #e0b56f;
+  --accent-text: #1d1812;
+  --danger: #ee8a68;
+  --success: #a3bf6e;
+  --warning: #e6b85c;
+  --ins-bg: #2f3a1c;
+  --ins-text: #c2dc8e;
+  --del-bg: #4a2418;
+  --del-text: #f4ad94;
+  --selection: #5a4524;
+  --shadow: 0 8px 28px rgb(0 0 0 / 55%);
+  --infobox-bg: #272017;
+  --color-scheme: dark;
+}
+:root[data-theme='parchment'][data-mode='light'] {
+  --bg: #f6efdf;
+  --bg-sunken: #ebe2ce;
+  --surface: #f1e8d4;
+  --surface-2: #e7dcc3;
+  --surface-3: #dccfb2;
+  --border: #cdbf9f;
+  --border-strong: #a8976f;
+  --text: #2f271a;
+  --text-muted: #5f523c;
+  --text-faint: #6c5f49;
+  --link: #7c4d12;
+  --link-hover: #5f3a0d;
+  --link-red: #a83a1c;
+  --accent: #7c4d12;
+  --accent-hover: #5f3a0d;
+  --accent-text: #fbf6ea;
+  --danger: #a83a1c;
+  --success: #4b691b;
+  --warning: #845809;
+  --ins-bg: #dfe9bd;
+  --ins-text: #3b5310;
+  --del-bg: #f3d3c2;
+  --del-text: #84290f;
+  --selection: #e3c98f;
+  --shadow: 0 8px 28px rgb(70 50 20 / 22%);
+  --infobox-bg: #f1e8d4;
+  --color-scheme: light;
+}
+
+/* ---- Typewriter ----------------------------------------------------------- */
+:root[data-theme='typewriter'] {
+  --font-ui: 'Courier Prime', 'Courier New', monospace;
+  --font-heading: 'Courier Prime', 'Courier New', monospace;
+  --font-body: 'Courier Prime', 'Courier New', monospace;
+  --font-prose: 'Courier Prime', 'Courier New', monospace;
+}
+:root[data-theme='typewriter'][data-mode='dark'] {
+  --bg: #0e0e0e;
+  --bg-sunken: #070707;
+  --surface: #1a1a1a;
+  --surface-2: #252525;
+  --surface-3: #313131;
+  --border: #3a3a3a;
+  --border-strong: #5c5c5c;
+  --text: #f0f0ea;
+  --text-muted: #b5b5ae;
+  --text-faint: #8d8d87;
+  --link: #f0f0ea;
+  --link-hover: #ffffff;
+  --link-red: #ff8a7a;
+  --accent: #f0f0ea;
+  --accent-hover: #ffffff;
+  --accent-text: #0e0e0e;
+  --danger: #ff8a7a;
+  --success: #9fd8a4;
+  --warning: #e8cf85;
+  --ins-bg: #1f3a22;
+  --ins-text: #a7e3ac;
+  --del-bg: #4a1f1b;
+  --del-text: #ffb0a5;
+  --selection: #4a4a4a;
+  --shadow: 0 8px 28px rgb(0 0 0 / 70%);
+  --infobox-bg: #1a1a1a;
+  --color-scheme: dark;
+}
+:root[data-theme='typewriter'][data-mode='light'] {
+  --bg: #fbfaf5;
+  --bg-sunken: #f0efe8;
+  --surface: #f4f3ec;
+  --surface-2: #e9e8e0;
+  --surface-3: #dcdbd2;
+  --border: #c4c3ba;
+  --border-strong: #8e8d85;
+  --text: #161616;
+  --text-muted: #4a4a46;
+  --text-faint: #686863;
+  --link: #161616;
+  --link-hover: #000000;
+  --link-red: #b02a1a;
+  --accent: #161616;
+  --accent-hover: #000000;
+  --accent-text: #fbfaf5;
+  --danger: #b02a1a;
+  --success: #24692b;
+  --warning: #806000;
+  --ins-bg: #d5ecd4;
+  --ins-text: #1d5624;
+  --del-bg: #f6d8d3;
+  --del-text: #8a1f12;
+  --selection: #d4d3ca;
+  --shadow: 0 8px 28px rgb(0 0 0 / 18%);
+  --infobox-bg: #f4f3ec;
+  --color-scheme: light;
+}
+
+/* ---- Midnight Ink --------------------------------------------------------- */
+:root[data-theme='midnight'] {
+  --font-heading: 'Source Serif 4', Georgia, serif;
+  --font-body: 'Source Serif 4', Georgia, serif;
+  --font-prose: 'Source Serif 4', Georgia, serif;
+}
+:root[data-theme='midnight'][data-mode='dark'] {
+  --bg: #0c1022;
+  --bg-sunken: #080b18;
+  --surface: #151a33;
+  --surface-2: #1e2444;
+  --surface-3: #293056;
+  --border: #2c3358;
+  --border-strong: #4a5384;
+  --text: #e6e8f5;
+  --text-muted: #a7acd0;
+  --text-faint: #868bb0;
+  --link: #9db4ff;
+  --link-hover: #c0cfff;
+  --link-red: #ff8fa3;
+  --accent: #8ea6ff;
+  --accent-hover: #b3c3ff;
+  --accent-text: #0c1022;
+  --danger: #ff8fa3;
+  --success: #6fd9b0;
+  --warning: #f0c674;
+  --ins-bg: #143a33;
+  --ins-text: #8fe8c8;
+  --del-bg: #47192c;
+  --del-text: #ffb0c0;
+  --selection: #32407f;
+  --shadow: 0 8px 28px rgb(0 0 0 / 60%);
+  --infobox-bg: #151a33;
+  --color-scheme: dark;
+}
+:root[data-theme='midnight'][data-mode='light'] {
+  --bg: #f5f6fd;
+  --bg-sunken: #e9ebf8;
+  --surface: #eef0fa;
+  --surface-2: #e1e4f5;
+  --surface-3: #d2d6ee;
+  --border: #c3c8e6;
+  --border-strong: #8d94c4;
+  --text: #171b3a;
+  --text-muted: #474c74;
+  --text-faint: #5e6288;
+  --link: #2c3fb8;
+  --link-hover: #1f2e8f;
+  --link-red: #b8294a;
+  --accent: #2c3fb8;
+  --accent-hover: #1f2e8f;
+  --accent-text: #ffffff;
+  --danger: #b8294a;
+  --success: #0e7456;
+  --warning: #865f00;
+  --ins-bg: #d4f3e8;
+  --ins-text: #0b5c44;
+  --del-bg: #fbdce4;
+  --del-text: #8c1c38;
+  --selection: #c8d0f7;
+  --shadow: 0 8px 28px rgb(23 27 58 / 18%);
+  --infobox-bg: #eef0fa;
+  --color-scheme: light;
+}
+
+/* ---- Lorekeeper ----------------------------------------------------------- */
+/*
+ * Drawn from the app's icon, an engraved griffin: sepia ink on parchment, on a terracotta
+ * tile. Terracotta is the one accent. Red links are crimson, a cooler red than the accent,
+ * and dashed as well, so a missing page never depends on telling two reds apart.
+ */
+:root[data-theme='lorekeeper'] {
+  --font-heading: 'Libertinus Serif', Georgia, 'Times New Roman', serif;
+  --font-body: 'Libertinus Serif', Georgia, 'Times New Roman', serif;
+  --font-prose: 'Libertinus Serif', Georgia, 'Times New Roman', serif;
+}
+:root[data-theme='lorekeeper'] .wiki-link-red {
+  text-decoration-line: underline;
+  text-decoration-style: dashed;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.2em;
+}
+:root[data-theme='lorekeeper'][data-mode='dark'] {
+  --bg: #1c110a;
+  --bg-sunken: #140b06;
+  --surface: #26180f;
+  --surface-2: #312016;
+  --surface-3: #3d2a1c;
+  --border: #4a3424;
+  --border-strong: #76593e;
+  --text: #f5e9c8;
+  --text-muted: #c0ac8e;
+  --text-faint: #a8947a;
+  --link: #e8875b;
+  --link-hover: #f4aa85;
+  --link-red: #f27a98;
+  --accent: #d0612f;
+  --accent-hover: #e07a4b;
+  --accent-text: #1c110a;
+  --danger: #f27a98;
+  --success: #a8c47a;
+  --warning: #e2b65a;
+  --ins-bg: #213a1c;
+  --ins-text: #c3dc94;
+  --del-bg: #4c1a24;
+  --del-text: #f8adb9;
+  --selection: #36405e;
+  --shadow: 0 8px 28px rgb(0 0 0 / 60%);
+  --infobox-bg: #26180f;
+  --color-scheme: dark;
+}
+:root[data-theme='lorekeeper'][data-mode='light'] {
+  --bg: #f8efd7;
+  --bg-sunken: #ede2c7;
+  --surface: #f2e6cb;
+  --surface-2: #e9dbbc;
+  --surface-3: #e2d0ae;
+  --border: #d8c6a4;
+  --border-strong: #b09b7e;
+  --text: #261810;
+  --text-muted: #584330;
+  --text-faint: #6a5540;
+  --link: #993c17;
+  --link-hover: #7a2e10;
+  --link-red: #9d1c42;
+  --accent: #a9461d;
+  --accent-hover: #8b3816;
+  --accent-text: #fdf6e0;
+  --danger: #9d1c42;
+  --success: #47661f;
+  --warning: #7a5200;
+  --ins-bg: #cde2b1;
+  --ins-text: #3b5212;
+  --del-bg: #f4d3cf;
+  --del-text: #8c1a30;
+  --selection: #cbd3e3;
+  --shadow: 0 8px 28px rgb(64 38 18 / 22%);
+  --infobox-bg: #f1e4c6;
+  --color-scheme: light;
+}
+
+/* ---- High contrast -------------------------------------------------------- */
+/* All text reaches 7:1 on every surface it appears on. See themes.test.ts. */
+:root[data-theme='contrast'] {
+  --font-ui: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+  --font-heading: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+  --font-prose: 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+}
+:root[data-theme='contrast'][data-mode='dark'] {
+  --bg: #000000;
+  --bg-sunken: #000000;
+  --surface: #0f0f0f;
+  --surface-2: #1c1c1c;
+  --surface-3: #2e2e2e;
+  --border: #8c8c8c;
+  --border-strong: #ffffff;
+  --text: #ffffff;
+  --text-muted: #eeeeee;
+  --text-faint: #d6d6d6;
+  --link: #9ad0ff;
+  --link-hover: #cce6ff;
+  --link-red: #ffb3a6;
+  --accent: #ffe14d;
+  --accent-hover: #fff0a3;
+  --accent-text: #000000;
+  --danger: #ffb3a6;
+  --success: #8ef0b4;
+  --warning: #ffe14d;
+  --ins-bg: #003319;
+  --ins-text: #a8ffd0;
+  --del-bg: #4d0000;
+  --del-text: #ffd0c9;
+  --selection: #004a99;
+  --shadow: 0 0 0 1px #ffffff;
+  --infobox-bg: #0f0f0f;
+  --color-scheme: dark;
+}
+:root[data-theme='contrast'][data-mode='light'] {
+  --bg: #ffffff;
+  --bg-sunken: #f7f7f7;
+  --surface: #f7f7f7;
+  --surface-2: #ebebeb;
+  --surface-3: #dedede;
+  --border: #666666;
+  --border-strong: #000000;
+  --text: #000000;
+  --text-muted: #1a1a1a;
+  --text-faint: #333333;
+  --link: #00308f;
+  --link-hover: #001c5c;
+  --link-red: #8a0000;
+  --accent: #00308f;
+  --accent-hover: #001c5c;
+  --accent-text: #ffffff;
+  --danger: #8a0000;
+  --success: #004d29;
+  --warning: #5c3d00;
+  --ins-bg: #d4f7e2;
+  --ins-text: #00381d;
+  --del-bg: #fcdeda;
+  --del-text: #6b0000;
+  --selection: #a8d1ff;
+  --shadow: 0 0 0 1px #000000;
+  --infobox-bg: #f7f7f7;
+  --color-scheme: light;
+}

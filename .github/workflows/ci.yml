@@ -1,0 +1,206 @@
+name: CI
+
+# Actions minutes are limited while the repository is private, and Windows minutes count
+# twice and macOS minutes ten times. So the checks that are the same everywhere run once, on
+# Linux, before anything else starts, and the expensive platforms run only where they are
+# worth it. See "What CI does" in docs/RELEASING.md for what runs when.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
+  pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to a branch or pull request cancels the run it replaces. Runs by hand have their
+# own group, so a push to the same branch does not cancel a full run someone asked for.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    # A pull request from main in this repository was already tested by its push.
+    if: >-
+      github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name != github.repository
+      || github.head_ref != 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      platforms: ${{ steps.platforms.outputs.list }}
+    steps:
+      # Linux always. Windows, which runs the end-to-end tests, on main, when run by hand, and
+      # on everything once the repository is public, as minutes are free then. macOS on main
+      # and by hand only.
+      - name: Choose the platforms
+        id: platforms
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+          PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ] || [ "$REF" = refs/heads/main ]; then
+            list='["ubuntu-latest", "windows-latest"]'
+            why='This is main or a run by hand, so every platform is tested.'
+          elif [ "$PRIVATE" != true ]; then
+            list='["ubuntu-latest", "windows-latest"]'
+            why='Linux and Windows are tested on every push.'
+          else
+            list='["ubuntu-latest"]'
+            why='While the repository is private, Windows (with the end-to-end tests) is tested on main and in runs by hand: Actions > CI > Run workflow.'
+          fi
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+          echo "Platforms: $list. $why" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+      - run: npm run version:check
+      - run: npm run typecheck
+      - run: npm test
+      - name: Check that every interface text is translated
+        run: npm run i18n -- --check
+
+      # Added by another change. Until package.json has the script, this says so and passes.
+      - name: Check licenses
+        run: |
+          if node -e "process.exit(require('./package.json').scripts?.['licenses:check'] ? 0 : 1)"; then
+            npm run licenses:check
+          else
+            echo "::notice::package.json has no licenses:check script yet, so licenses were not checked."
+          fi
+
+  test:
+    needs: checks
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # E2E alone takes most of an hour on Windows. The limits stop a hung run from using the
+    # month's minutes, which by default would take six hours.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 120 || 45 }}
+    strategy:
+      # A failure on one platform should not hide how the others did.
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(needs.checks.outputs.platforms) }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # From https://v2.tauri.app/start/prerequisites/, plus libdbus for the credential store.
+      - name: Install the Linux build packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev pkg-config
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          # Caches made by pull requests can only be used by that pull request, and would push
+          # the useful ones out of the repository's 10 GB.
+          save-if: ${{ github.event_name == 'push' }}
+
+      - run: npm ci
+
+      # The debug build makes dist/ through beforeBuildCommand, and the Rust tests embed dist/,
+      # so building first means the frontend is built once.
+      - run: npm run app:debug
+      - run: npm run test:rust
+
+      # E2E drives the app through WebView2's DevTools port. WKWebView and WebKitGTK have
+      # nothing equivalent, so the other platforms stop at the tests and the build above.
+      - name: Show the WebView2 version
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $client = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $keys = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\$client", "HKCU:\Software\Microsoft\EdgeUpdate\Clients\$client"
+          $found = $keys | ForEach-Object { (Get-ItemProperty $_ -ErrorAction SilentlyContinue).pv } | Where-Object { $_ } | Select-Object -First 1
+          if ($found) { "WebView2 $found" } else { 'WebView2 is not installed as a separate runtime.' }
+
+      # e2e/meaning.test.mjs runs the real 91 MB model, pinned to one revision on huggingface.co.
+      # It is cached under that revision, and saved only when the whole job passed, which means
+      # the app accepted it and its hashes were right.
+      - name: Find the pinned model revision
+        if: runner.os == 'Windows'
+        id: minilm
+        shell: bash
+        run: |
+          revision=$(grep -oE 'all-MiniLM-L6-v2/resolve/[0-9a-f]{40}' e2e/meaning.test.mjs | head -n 1 | cut -d/ -f3)
+          if [ -z "$revision" ]; then
+            echo "::error file=e2e/meaning.test.mjs::No pinned model revision found. Keep the download address in the form .../all-MiniLM-L6-v2/resolve/<40-character revision>."
+            exit 1
+          fi
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+
+      - name: Cache the model
+        if: runner.os == 'Windows'
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/minilm
+          key: minilm-${{ steps.minilm.outputs.revision }}
+
+      # GitHub's Windows machines start at 1024x768, which clamps the app's 1400x900 window, and
+      # the Write screen then starts with its details panel closed, as it does under 1280 pixels.
+      # Server images may also turn off window animations, which makes the web view prefer
+      # reduced motion. Both are set as on a writer's computer. If either fails, the tests still
+      # run, and this step says what the desktop is.
+      - name: Prepare the desktop for the end-to-end tests
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: powershell
+        run: |
+          try { Set-DisplayResolution -Width 1920 -Height 1080 -Force -ErrorAction Stop }
+          catch { Write-Output "::warning::Could not set the screen to 1920x1080: $($_.Exception.Message)" }
+          Add-Type -Namespace LoreCraft -Name Desktop -MemberDefinition @'
+          [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint action, uint param, ref bool value, uint flags);
+          [DllImport("user32.dll")] public static extern bool SystemParametersInfo(uint action, uint param, IntPtr value, uint flags);
+          '@
+          $animated = $false
+          [LoreCraft.Desktop]::SystemParametersInfo(0x1042, 0, [ref]$animated, 0) | Out-Null
+          if (-not $animated) {
+            # SPI_SETCLIENTAREAANIMATION, saved and announced to running programs.
+            [LoreCraft.Desktop]::SystemParametersInfo(0x1043, 0, [IntPtr]1, 3) | Out-Null
+            [LoreCraft.Desktop]::SystemParametersInfo(0x1042, 0, [ref]$animated, 0) | Out-Null
+          }
+          Add-Type -AssemblyName System.Windows.Forms
+          $screen = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          Write-Output "Screen $($screen.Width)x$($screen.Height), window animations $(if ($animated) { 'on' } else { 'off' })"
+
+      # One short suite first, so a machine where the app cannot start at all fails in minutes
+      # rather than once per test.
+      - name: End-to-end smoke test
+        if: runner.os == 'Windows'
+        timeout-minutes: 10
+        run: node --test --test-concurrency=1 --test-reporter=spec e2e/foundation.test.mjs
+
+      - name: End-to-end tests
+        if: runner.os == 'Windows'
+        timeout-minutes: 90
+        env:
+          LORECRAFT_TEST_MODEL_DIR: ${{ runner.temp }}/minilm
+          # The hosted runners have two cores, so timing limits in the tests stretch this much.
+          LORECRAFT_E2E_SLOW: '3'
+        run: npm run e2e
+
+      - uses: actions/upload-artifact@v7
+        if: failure() && runner.os == 'Windows'
+        with:
+          name: e2e-screenshots
+          path: e2e/artifacts/
+          retention-days: 7
