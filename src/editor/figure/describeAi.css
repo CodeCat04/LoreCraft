@@ -1,0 +1,22 @@
+/* "Describe with AI": progress, a problem, and the suggestion to use or discard. */
+.figure-ai {
+  display: grid;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+}
+.figure-ai[hidden],
+.figure-ai [hidden] { display: none; }
+.figure-ai-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.figure-ai-status { margin: 0; }
+.figure-ai-problem { margin: 0; color: var(--danger); }
+.figure-ai-text { width: 100%; }
+.figure-ai-text[readonly] { color: var(--text-muted); }
+.figure-ai-actions { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
+.figure-ai > .btn { justify-self: start; }
+.figure-ai-button[aria-disabled="true"] { opacity: 0.6; cursor: default; }
+.figure-describe-actions .figure-ai-button { margin-inline-end: auto; }
+.media-detail-ai { display: flex; justify-content: flex-start; margin-bottom: 0.5rem; }

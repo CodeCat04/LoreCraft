@@ -1,0 +1,20 @@
+{
+  "No chapter": "Kein Kapitel",
+  "{book}: {chapter}": "{book}: {chapter}",
+  "Scene of change {number} to {field}": "Szene der Änderung {number} an {field}",
+  "No scene": "Keine Szene",
+  "A scene that was removed": "Eine entfernte Szene",
+  "In-world date of change {number} to {field}": "Datum in der Welt für Änderung {number} an {field}",
+  "Value": "Wert",
+  "New value of change {number} to {field}": "Neuer Wert der Änderung {number} an {field}",
+  "Note on change {number} to {field}": "Notiz zur Änderung {number} an {field}",
+  "Give this a scene or a date, or it will never take effect.": "Gib dieser Änderung eine Szene oder ein Datum, sonst tritt sie nie in Kraft.",
+  "Remove change {number} to {field}": "Änderung {number} an {field} entfernen",
+  "The value above holds until the first change.": "Der Wert oben gilt bis zur ersten Änderung.",
+  "Add a change to {field}": "Eine Änderung an {field} hinzufügen",
+  "Add a change": "Änderung hinzufügen",
+  "Changes during the story to {field}, {count} so far": "Änderungen an {field} im Lauf der Geschichte, bisher {count}",
+  "Changes during the story to {field}": "Änderungen an {field} im Lauf der Geschichte",
+  "Changes during the story ({count})": "Änderungen im Lauf der Geschichte ({count})",
+  "Changes during the story": "Änderungen im Lauf der Geschichte"
+}

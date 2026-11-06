@@ -1,0 +1,66 @@
+[
+  { "note": "empty", "text": "", "words": 0 },
+  { "note": "only spaces", "text": "  \n\t ", "words": 0 },
+
+  { "note": "English sentence", "text": "The quick brown fox.", "words": 4 },
+  { "note": "punctuation-only tokens", "text": "one - two -- three", "words": 3 },
+  { "note": "hyphens stay inside a word", "text": "well-known mother-in-law", "words": 2 },
+  { "note": "apostrophes stay inside a word", "text": "don't stop Kel'Thuzad's", "words": 3 },
+  { "note": "no space after a comma stays one token, as it always has", "text": "foo,bar baz", "words": 2 },
+  { "note": "abbreviations and numbers", "text": "e.g. 3.14 is 1,000", "words": 4 },
+  { "note": "line breaks and tabs", "text": "one\ntwo\tthree", "words": 3 },
+  { "note": "no-break space", "text": "one two", "words": 2 },
+  { "note": "next-line control counts as a space on both sides", "text": "one\u0085two", "words": 2 },
+  { "note": "zero-width space is not a space", "text": "one​two", "words": 1 },
+  { "note": "byte order mark is not a space", "text": "one﻿two", "words": 1 },
+
+  { "note": "accented Latin", "text": "  naïve café  ", "words": 2 },
+  { "note": "Spanish", "text": "¿Dónde está el niño?", "words": 4 },
+  { "note": "decomposed accent", "text": "café au lait", "words": 3 },
+  { "note": "fullwidth Latin", "text": "ＡＢＣ ｄｅｆ", "words": 2 },
+
+  { "note": "Cyrillic", "text": "Привет, как дела?", "words": 3 },
+  { "note": "Greek", "text": "Καλημέρα κόσμε", "words": 2 },
+  { "note": "Arabic", "text": "كتب الولد رسالة طويلة", "words": 4 },
+  { "note": "Arabic with vowel marks", "text": "كَتَبَ الْوَلَدُ", "words": 2 },
+  { "note": "Arabic question mark alone", "text": "؟", "words": 0 },
+  { "note": "Hebrew", "text": "שלום עולם", "words": 2 },
+  { "note": "Hebrew with points", "text": "שָׁלוֹם עוֹלָם", "words": 2 },
+  { "note": "Devanagari with vowel signs", "text": "नमस्ते दुनिया", "words": 2 },
+
+  { "note": "Chinese counts each character", "text": "我爱读书", "words": 4 },
+  { "note": "Chinese punctuation does not count", "text": "你好，世界。", "words": 4 },
+  { "note": "Chinese quote marks and a book title", "text": "「你好」《红楼梦》", "words": 5 },
+  { "note": "ideographic space", "text": "日本　語", "words": 3 },
+  { "note": "rare characters outside the basic plane", "text": "𠮷野家", "words": 3 },
+  { "note": "Chinese with Latin and a number", "text": "我在2024年去了Paris。", "words": 7 },
+  { "note": "Latin on both sides of Chinese", "text": "foo世bar", "words": 3 },
+  { "note": "Bopomofo", "text": "ㄅㄆㄇ", "words": 3 },
+
+  { "note": "Japanese kanji and hiragana", "text": "吾輩は猫である", "words": 7 },
+  { "note": "katakana, including the long vowel mark", "text": "コーヒー", "words": 4 },
+  { "note": "katakana middle dot does not count", "text": "ジョン・スミス", "words": 6 },
+  { "note": "iteration mark", "text": "人々", "words": 2 },
+  { "note": "combining voiced mark is part of its kana", "text": "が", "words": 1 },
+  { "note": "halfwidth katakana with a voiced mark", "text": "ｶﾞｷ", "words": 2 },
+
+  { "note": "Korean is written with spaces, so counts by word", "text": "나는 학교에 간다", "words": 3 },
+
+  { "note": "Thai is estimated at one word per four letters", "text": "ภาษาไทยเป็นภาษาที่สวยงาม", "words": 6 },
+  { "note": "Thai marks are not letters", "text": "สวัสดี", "words": 1 },
+  { "note": "Thai runs are counted apart", "text": "สวัสดี ครับ", "words": 2 },
+  { "note": "Thai digits are a number", "text": "๑๒๓", "words": 1 },
+  { "note": "Thai beside Latin", "text": "ไทยEnglishไทย", "words": 3 },
+  { "note": "Lao", "text": "ພາສາລາວ", "words": 2 },
+  { "note": "Khmer", "text": "ភាសាខ្មែរ", "words": 2 },
+  { "note": "Burmese", "text": "မြန်မာဘာသာ", "words": 2 },
+
+  { "note": "an emoji is not a word", "text": "🦊", "words": 0 },
+  { "note": "emoji with skin tones and joiners", "text": "👍🏽 👩‍💻 🐉🐉", "words": 0 },
+  { "note": "an emoji beside a word", "text": "fox 🦊 🦊fox", "words": 2 },
+  { "note": "an emoji beside Chinese", "text": "你🦊好", "words": 2 },
+
+  { "note": "punctuation only", "text": "-- ... !!! — “” 。， ？！ ・", "words": 0 },
+  { "note": "numbers of other kinds count as alphanumeric", "text": "² Ⅷ", "words": 2 },
+  { "note": "a circled letter counts as alphabetic", "text": "Ⓐ", "words": 1 }
+]

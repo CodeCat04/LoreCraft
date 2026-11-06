@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Tells Linux desktops which files are LoreCraft projects, so double-clicking one opens it. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-lorecraft">
+    <comment>LoreCraft project</comment>
+    <glob pattern="*.lorecraft"/>
+  </mime-type>
+</mime-info>

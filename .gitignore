@@ -1,0 +1,31 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+Thumbs.db
+
+# Rust
+src-tauri/target/
+.build/
+
+# Generated
+src-tauri/gen/schemas/
+
+# Tests
+e2e/artifacts/
+coverage/
+
+# Editors and agents
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.claude/worktrees/
+.claude/settings.local.json
+
+# User data must never be committed
+*.lorecraft
+*.lorecraft-wal
+*.lorecraft-shm
+*.lorebook
+*.lorebook-wal
+*.lorebook-shm

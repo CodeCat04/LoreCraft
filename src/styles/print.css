@@ -1,0 +1,228 @@
+/*
+ * The look of exported PDFs. These colors are for paper, not for the app's themes, so
+ * this is the one stylesheet that names colors directly. Page size and running heads
+ * come from each document's own @page rules.
+ */
+
+html, body { margin: 0; padding: 0; background: #fff; color: #111; }
+* { box-sizing: border-box; }
+/* The page's edge can fall part way through a pixel, which would cut off a right border. */
+.doc { padding-right: 1px; }
+
+.new-page { break-before: page; }
+a { color: inherit; text-decoration: none; }
+
+/* ---- Title pages and contents --------------------------------------------- */
+.title-page { page: title-page; text-align: center; padding-top: 28%; }
+.title-page h1 { font-family: 'Source Serif 4', serif; font-size: 28pt; font-weight: 400; line-height: 1.2; margin: 0 0 12pt; }
+.title-page .subtitle { font-size: 14pt; font-style: italic; margin: 0 0 24pt; }
+.title-page .author { font-size: 13pt; margin: 36pt 0 0; }
+
+.contents-heading { font-size: 16pt; font-weight: 400; text-align: center; margin: 0 0 18pt; }
+.book-contents ol { list-style: none; margin: 0; padding: 0; }
+.toc-line { margin: 0 0 4pt; }
+.toc-line a { display: flex; align-items: baseline; gap: 4pt; }
+.toc-title { flex: 0 1 auto; }
+.toc-dots { flex: 1 1 auto; border-bottom: 1pt dotted #777; min-width: 12pt; transform: translateY(-2pt); }
+.toc-page { flex: none; font-variant-numeric: tabular-nums; }
+.toc-depth-1 { padding-left: 16pt; }
+
+/* ---- Pictures, videos and tables with labels -------------------------------- */
+.figure { margin: 0.25em 0 0.9em; break-inside: avoid; max-width: 100%; }
+.figure-right { float: right; clear: right; width: 40%; margin-left: 1.25em; }
+.figure-left { float: left; clear: left; width: 40%; margin-right: 1.25em; }
+.figure-center { width: 60%; margin-left: auto; margin-right: auto; }
+.figure-full { width: 100%; }
+.figure img { display: block; width: 100%; height: auto; }
+.figure table { margin: 0; width: 100%; }
+figcaption { margin-top: 0.35em; font-size: 0.85em; line-height: 1.35; text-indent: 0; text-align: left; }
+.figure-name { font-weight: 700; }
+.video-missing, .video-link { margin: 0; padding: 0.75em; border: 1pt solid #999; text-align: center; text-indent: 0; font-size: 0.9em; overflow-wrap: anywhere; }
+
+/* ---- The novel ------------------------------------------------------------ */
+.doc-novel { font-family: 'Source Serif 4', Georgia, serif; font-size: 11pt; line-height: 1.42; }
+.chapter-title { font-size: 18pt; font-weight: 400; text-align: center; margin: 54pt 0 30pt; break-after: avoid; }
+.part-page { text-align: center; padding-top: 30%; }
+.part-title { font-size: 22pt; font-weight: 400; margin: 0; }
+.scene-title { font-size: 12.5pt; font-weight: 600; margin: 16pt 0 8pt; break-after: avoid; }
+.scene { orphans: 2; widows: 2; }
+.doc-novel .scene::after { content: ''; display: block; clear: both; }
+.doc-novel p { margin: 0; text-indent: 1.3em; text-align: justify; hyphens: auto; }
+.doc-novel .scene > p:first-child,
+.doc-novel .scene > .figure + p,
+.doc-novel .scene > h1 + p, .doc-novel .scene > h2 + p, .doc-novel .scene > h3 + p, .doc-novel .scene > h4 + p,
+.doc-novel .scene > hr + p, .doc-novel .scene > blockquote + p, .doc-novel .scene > ul + p, .doc-novel .scene > ol + p,
+.doc-novel blockquote p, .doc-novel li p, .doc-novel td p, .doc-novel th p { text-indent: 0; }
+.scene-break { text-align: center !important; text-indent: 0 !important; margin: 12pt 0 !important; }
+.doc-novel h1, .doc-novel h2, .doc-novel h3, .doc-novel h4 { font-weight: 400; line-height: 1.25; }
+.scene h1, .scene h2, .scene h3, .scene h4 { font-size: 1.1em; font-weight: 600; margin: 1em 0 0.4em; break-after: avoid; }
+.doc-novel blockquote { margin: 0.6em 1.5em; font-style: italic; }
+.doc-novel ul, .doc-novel ol { margin: 0.5em 0; padding-left: 1.6em; }
+.doc-novel pre { font-family: 'Courier Prime', monospace; font-size: 0.9em; white-space: pre-wrap; margin: 0.6em 0; }
+.doc-novel code { font-family: 'Courier Prime', monospace; font-size: 0.95em; }
+.doc-novel hr { border: 0; text-align: center; margin: 12pt 0; }
+.doc-novel hr::before { content: '* * *'; }
+.doc-novel table { border-collapse: collapse; margin: 0.6em auto; font-size: 0.95em; }
+.doc-novel th, .doc-novel td { border: 0.75pt solid #777; padding: 2pt 5pt; vertical-align: top; }
+.note-mark { font-size: 0.7em; line-height: 0; }
+.chapter-notes { margin-top: 18pt; border-top: 0.75pt solid #999; padding-top: 8pt; font-size: 0.88em; }
+.notes-title { font-size: 1em; font-weight: 600; margin: 0 0 4pt; }
+.chapter-notes ol { margin: 0; padding-left: 1.5em; }
+
+/* Cover, and front and back matter. */
+.cover-page { page: cover; }
+.cover-page img { display: block; object-fit: contain; }
+.front-matter { page: front-matter; }
+.doc-novel .matter p { text-indent: 0; margin: 0 0 0.6em; text-align: left; hyphens: manual; }
+.matter-copyright { padding-top: 55%; font-size: 0.85em; }
+.matter-dedication, .matter-epigraph { padding-top: 28%; text-align: center; }
+.doc-novel .matter-dedication p, .doc-novel .matter-epigraph p { text-align: center; }
+.matter-epigraph { font-style: italic; }
+.matter::after { content: ''; display: block; clear: both; }
+
+/* Print-ready pages. Title pages and dividers keep their heads and numbers off. */
+.doc-print .title-page { padding-top: 22%; }
+.doc-print .part-page { page: part-divider; }
+.blank-page { page: blank-page; min-height: 1px; }
+
+/* Standard manuscript format. */
+.doc-manuscript { font-family: 'Courier Prime', 'Courier New', monospace; font-size: 12pt; line-height: 2; }
+.doc-manuscript p { text-align: left; hyphens: manual; text-indent: 0.5in; }
+.doc-manuscript .scene > p:first-child, .doc-manuscript .scene > .figure + p { text-indent: 0.5in; }
+.doc-manuscript .title-page { padding-top: 0; text-align: center; }
+.doc-manuscript .title-page h1 { font-family: inherit; font-size: 12pt; font-weight: 700; margin: 3.2in 0 0; line-height: 2; }
+.doc-manuscript .title-page .subtitle { font-size: 12pt; font-style: normal; margin: 0; text-indent: 0; text-align: center; }
+.doc-manuscript .title-page .author { font-size: 12pt; margin: 0; text-indent: 0; text-align: center; }
+.manuscript-head { display: flex; justify-content: space-between; line-height: 1.3; }
+.doc-manuscript .figure-left, .doc-manuscript .figure-right { float: none; margin: 0.5in auto; }
+.doc-manuscript figcaption { line-height: 1.2; }
+.doc-manuscript .chapter-title { font-size: 12pt; font-weight: 400; margin: 2in 0 24pt; }
+.doc-manuscript .part-title { font-size: 12pt; font-weight: 400; }
+.the-end { text-align: center !important; text-indent: 0 !important; margin-top: 24pt !important; }
+
+/* ---- The wiki ------------------------------------------------------------- */
+.doc-wiki { font-family: 'Inter', 'Segoe UI', sans-serif; font-size: 10pt; line-height: 1.5; color: #202122; }
+.doc-wiki .title-page h1 { font-family: 'Libertinus Serif', serif; font-size: 32pt; }
+.doc-wiki .contents-heading { font-family: 'Libertinus Serif', serif; }
+.page-title {
+  font-family: 'Libertinus Serif', Georgia, serif;
+  font-size: 22pt;
+  font-weight: 400;
+  line-height: 1.25;
+  margin: 0 0 8pt;
+  padding-bottom: 0.15em;
+  border-bottom: 0.75pt solid #a2a9b1;
+  overflow-wrap: anywhere;
+}
+.page-subtitle { display: flex; flex-wrap: wrap; align-items: center; gap: 5pt; margin-bottom: 0.5em; font-size: 8pt; color: #54595d; }
+.badge { display: inline-block; padding: 0 3pt; font-size: 7.5pt; font-weight: 500; border-radius: 1.5pt; background: #dcdfe3; color: #54595d; }
+.badge-canon { background: #d5fdf4; color: #0a5a48; }
+.notice { margin: 0 0 6pt; padding: 2pt 6pt; background: #f8f9fa; border: 0.75pt solid #c8ccd1; border-left-width: 3pt; border-radius: 2pt; font-size: 8.75pt; }
+.notice-draft { border-left-color: #a66200; }
+.notice-idea { border-left-color: #3366cc; }
+.notice-retconned { background: #fee7e6; color: #8e2a1d; border-color: #8e2a1d; }
+.summary { margin: 0 0 0.5em; font-style: italic; color: #54595d; overflow-wrap: anywhere; }
+.aka { margin: 0 0 0.75em; font-size: 0.9375em; color: #54595d; overflow-wrap: anywhere; }
+.aka-label { font-weight: 600; }
+.empty-page { margin-top: 0.5em; color: #54595d; }
+
+.article { display: flow-root; overflow-wrap: break-word; }
+.article > :first-child, .article > .infobox:first-child + * { margin-top: 0; }
+.article h1, .article h2 {
+  font-family: 'Libertinus Serif', Georgia, serif;
+  font-weight: 400;
+  line-height: 1.25;
+  margin: 1em 0 0.5em;
+  padding-bottom: 0.15em;
+  border-bottom: 0.75pt solid #a2a9b1;
+  /* Section rules stop at the infobox instead of running underneath it. */
+  display: flow-root;
+  break-after: avoid;
+}
+.article h1 { font-size: 1.9em; }
+.article h2 { font-size: 1.55em; }
+.article h3 { font-size: 1.2em; font-weight: 600; margin: 0.9em 0 0.3em; break-after: avoid; }
+.article h4 { font-size: 1.05em; font-weight: 600; margin: 0.8em 0 0.25em; break-after: avoid; }
+.article p { margin: 0 0 0.75em; }
+.article ul, .article ol { margin: 0 0 0.75em; padding-left: 1.75em; }
+.article li > p { margin: 0 0 0.25em; }
+.article blockquote { margin: 0 0 0.75em; padding: 0.25em 1em; border-left: 2.25pt solid #a2a9b1; color: #54595d; }
+.article code { font-family: 'Cascadia Mono', Consolas, monospace; font-size: 0.9em; padding: 0.1em 0.3em; background: #eaecf0; border-radius: 0.2em; }
+.article pre { margin: 0 0 0.75em; padding: 0.75em 1em; background: #f8f9fa; border: 0.75pt solid #c8ccd1; border-radius: 0.3em; white-space: pre-wrap; overflow-wrap: anywhere; }
+.article pre code { padding: 0; background: none; }
+.article hr { margin: 1.25em 0; border: 0; border-top: 0.75pt solid #a2a9b1; }
+.article img { max-width: 100%; height: auto; border-radius: 0.2em; }
+.article table { border-collapse: collapse; margin: 0 0 0.75em; }
+.article th, .article td { border: 0.75pt solid #a2a9b1; padding: 0.3em 0.6em; vertical-align: top; }
+.article th { background: #eaecf0; font-weight: 600; }
+.article td p, .article th p { margin: 0; }
+.doc-wiki a { color: #3366cc; }
+.wiki-link-red { color: #bf3c2c; }
+.reference { font-size: 0.75em; line-height: 0; }
+
+.doc-wiki .figure { padding: 0.35em; background: #f8f9fa; border: 0.75pt solid #c8ccd1; border-radius: 0.2em; }
+.doc-wiki figcaption { color: #54595d; }
+.doc-wiki .video-missing, .doc-wiki .video-link { border: 0; background: #eaecf0; }
+
+.contents { display: table; max-width: 100%; margin: 0.75em 0 1em; padding: 0.5em 0.875em; background: #f8f9fa; border: 0.75pt solid #c8ccd1; font-size: 0.875em; line-height: 1.5; break-inside: avoid; }
+.contents-title { margin-bottom: 0.25em; font-weight: 600; text-align: center; }
+.article .contents ol { list-style: none; margin: 0; padding: 0; }
+.contents a { display: flex; gap: 0.5em; }
+.toc-number { color: #54595d; flex-shrink: 0; }
+.toc-level-1 { margin-left: 1em; }
+.toc-level-2 { margin-left: 2em; }
+.toc-level-3 { margin-left: 3em; }
+
+.infobox {
+  float: right;
+  clear: right;
+  width: 21em;
+  max-width: 45%;
+  margin: 0 0 1em 1.5em;
+  padding: 0.25em;
+  background: #f8f9fa;
+  border: 0.75pt solid #a2a9b1;
+  font-size: 0.875em;
+  line-height: 1.45;
+  break-inside: avoid;
+}
+.infobox-title {
+  padding: 0.25em 0.5em;
+  margin-bottom: 0.25em;
+  font-family: 'Libertinus Serif', serif;
+  font-size: 1.2em;
+  font-weight: 600;
+  text-align: center;
+  background: #eaecf0;
+  overflow-wrap: anywhere;
+}
+.infobox-image { margin: 0.5em; text-align: center; }
+.infobox-image img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.infobox-image figcaption, .infobox-caption { margin-top: 0.25em; font-size: 0.9em; color: #54595d; overflow-wrap: anywhere; }
+.article .infobox table { width: 100%; margin: 0; border-collapse: collapse; table-layout: fixed; }
+.article .infobox th, .article .infobox td {
+  padding: 0.2em 0.5em;
+  vertical-align: top;
+  text-align: left;
+  overflow-wrap: anywhere;
+  border: 0;
+  border-top: 0.75pt solid #c8ccd1;
+  background: none;
+}
+.article .infobox th { width: 38%; font-weight: 600; }
+
+.references { clear: both; }
+.references h2 {
+  margin: 1.25em 0 0.5em;
+  padding-bottom: 0.15em;
+  font-family: 'Libertinus Serif', serif;
+  font-size: 1.4em;
+  font-weight: 400;
+  line-height: 1.25;
+  border-bottom: 0.75pt solid #a2a9b1;
+  break-after: avoid;
+}
+.references ol { margin: 0; padding-left: 2em; font-size: 0.9em; }
+.references li { margin-bottom: 0.25em; overflow-wrap: anywhere; }
+.categories { clear: both; margin: 1.5em 0 1em; padding: 0.375em 0.75em; background: #f8f9fa; border: 0.75pt solid #c8ccd1; font-size: 0.875em; overflow-wrap: anywhere; }
+.sep { color: #72777d; }

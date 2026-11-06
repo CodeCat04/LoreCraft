@@ -1,0 +1,7 @@
+{
+  "Include pages and scenes marked local only": "Inclure les pages et scènes marquées local uniquement",
+  "Left out unless ticked, as the AI server does, because AI tools may send this file to a cloud service.": "Exclues sauf si la case est cochée, comme le fait le serveur d’IA, car les outils d’IA peuvent envoyer ce fichier à un service dans le cloud.",
+  "Pages and scenes marked local only were left out. To add them, tick \"Include pages and scenes marked local only\".": "Les pages et scènes marquées local uniquement ont été exclues. Pour les ajouter, cochez « Inclure les pages et scènes marquées local uniquement ».",
+  "\"{code}\" is not a language code such as en or pt-BR, so the ebook says it is in English (en).": "« {code} » n’est pas un code de langue comme en ou pt-BR, donc le livre numérique indique qu’il est en anglais (en).",
+  "would unpack to more than is safe to read, so it was not opened. The file may be damaged.": "se décompresserait en plus que ce qui peut être lu sans risque, il n’a donc pas été ouvert. Le fichier est peut-être endommagé."
+}

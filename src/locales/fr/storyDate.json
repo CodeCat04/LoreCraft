@@ -1,0 +1,11 @@
+{
+  "{month} has 1 day, so it has no day {day}.": "{month} a 1 jour, il n’a donc pas de jour {day}.",
+  "{month} has {days} days, so it has no day {day}.": "{month} a {days} jours, il n’a donc pas de jour {day}.",
+  "Add a year, as in \"{month} 312\".": "Ajoutez une année, comme dans « {month} 312 ».",
+  "\"{name}\" is not a month in this project's calendar.": "« {name} » n’est pas un mois du calendrier de ce projet.",
+  "No date is set.": "Aucune date n’est fixée.",
+  "\"{name}\" is not a known era or month. Add it in era settings, or change the date.": "« {name} » n’est ni une ère ni un mois connus. Ajoutez-le dans les paramètres des ères, ou changez la date.",
+  "\"{name}\" is not a known era. Add it in era settings, or change the date.": "« {name} » n’est pas une ère connue. Ajoutez-la dans les paramètres des ères, ou changez la date.",
+  "Not a date that can be put in order. Use a year such as 312, 312-04-15 or 15 {month} 312.": "Ce n’est pas une date qui peut être classée. Utilisez une année comme 312, 312-04-15 ou 15 {month} 312.",
+  "Not a date that can be put in order. Use a year such as 312 or 312-04-15.": "Ce n’est pas une date qui peut être classée. Utilisez une année comme 312 ou 312-04-15."
+}

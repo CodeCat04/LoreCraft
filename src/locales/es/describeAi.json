@@ -1,0 +1,10 @@
+{
+  "This picture is on a page or scene marked local only, so it can only go to a local profile that can read images. Add one in Settings > AI, or turn on \"Can read images\" for one.": "Esta imagen está en una página o escena marcada como solo local, así que solo puede ir a un perfil local que lea imágenes. Añade uno en Ajustes > IA, o activa «Puede leer imágenes» en uno.",
+  "Could not describe the picture: {reason}": "No se pudo describir la imagen: {reason}",
+  "Describe with AI": "Describir con IA",
+  "Ask an AI that can read images to suggest a description": "Pide a una IA que lea imágenes que sugiera una descripción",
+  "Suggested description": "Descripción sugerida",
+  "Use this": "Usar esta",
+  "Looking at the picture…": "Mirando la imagen…",
+  "Writing a description…": "Escribiendo una descripción…"
+}

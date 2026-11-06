@@ -1,0 +1,100 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LoreCraft",
+  "version": "../package.json",
+  "identifier": "com.codecat04.lorecraft",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "worker-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob: http://lbasset.localhost lbasset:",
+        "media-src": "'self' blob: http://lbasset.localhost lbasset:",
+        "font-src": "'self' data:",
+        "connect-src": "ipc: http://ipc.localhost",
+        "object-src": "'none'",
+        "frame-src": "https: http:",
+        "form-action": "'none'",
+        "base-uri": "'none'"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "shortDescription": "Worldbuilding wiki and novel writer with AI",
+    "longDescription": "A Wikipedia-style lorebook and novel writer. Keeps your world consistent, with help from local or frontier AI.",
+    "fileAssociations": [
+      {
+        "ext": [
+          "lorecraft",
+          "lorebook"
+        ],
+        "name": "LoreCraft Project",
+        "description": "LoreCraft project file",
+        "role": "Editor",
+        "mimeType": "application/x-lorecraft"
+      }
+    ],
+    "publisher": "CodeCat04",
+    "homepage": "https://github.com/CodeCat04/LoreCraft",
+    "copyright": "Copyright (c) 2026 CodeCat04",
+    "license": "AGPL-3.0-only",
+    "licenseFile": "../LICENSE",
+    "resources": {
+      "../THIRD_PARTY_LICENSES.txt": "THIRD_PARTY_LICENSES.txt",
+      "resources/dictionaries/": "dictionaries/",
+      "../node_modules/dictionary-en/index.aff": "dictionaries/en-US/index.aff",
+      "../node_modules/dictionary-en/index.dic": "dictionaries/en-US/index.dic",
+      "../node_modules/dictionary-en-gb/index.aff": "dictionaries/en-GB/index.aff",
+      "../node_modules/dictionary-en-gb/index.dic": "dictionaries/en-GB/index.dic",
+      "../node_modules/dictionary-es/index.aff": "dictionaries/es/index.aff",
+      "../node_modules/dictionary-es/index.dic": "dictionaries/es/index.dic",
+      "../node_modules/dictionary-fr/index.aff": "dictionaries/fr/index.aff",
+      "../node_modules/dictionary-fr/index.dic": "dictionaries/fr/index.dic",
+      "../node_modules/dictionary-de/index.aff": "dictionaries/de/index.aff",
+      "../node_modules/dictionary-de/index.dic": "dictionaries/de/index.dic",
+      "../node_modules/dictionary-pt/index.aff": "dictionaries/pt/index.aff",
+      "../node_modules/dictionary-pt/index.dic": "dictionaries/pt/index.dic",
+      "../node_modules/dictionary-it/index.aff": "dictionaries/it/index.aff",
+      "../node_modules/dictionary-it/index.dic": "dictionaries/it/index.dic",
+      "../node_modules/dictionary-ru/index.aff": "dictionaries/ru/index.aff",
+      "../node_modules/dictionary-ru/index.dic": "dictionaries/ru/index.dic"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "headerImage": "icons/installer/header.bmp",
+        "sidebarImage": "icons/installer/sidebar.bmp",
+        "compression": "lzma",
+        "displayLanguageSelector": false,
+        "startMenuFolder": "LoreCraft"
+      }
+    }
+  }
+}

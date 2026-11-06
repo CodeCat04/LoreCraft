@@ -1,0 +1,696 @@
+/*
+ * Timeline, relationship graph, maps and spellcheck. Chrome is sized in rem, so the
+ * interface-size setting scales it. The underline sits inside prose, so it is in em.
+ */
+
+/* The colors the Atlas gives page types. Built only from theme tokens, and read at
+   runtime by the graph's canvas, so they follow every theme. */
+:root {
+  --atlas-character: var(--link);
+  --atlas-place: var(--success);
+  --atlas-faction: var(--warning);
+  --atlas-item: var(--danger);
+  --atlas-event: color-mix(in srgb, var(--danger) 55%, var(--link));
+  --atlas-concept: color-mix(in srgb, var(--success) 50%, var(--link));
+  --atlas-other: var(--text-muted);
+  --atlas-home: var(--text);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Shared Atlas layout ---------------------------------------------------- */
+.atlas-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.atlas-view-scroll { overflow-y: auto; }
+
+.atlas-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.75rem 1.25rem 0.5rem;
+}
+.atlas-title {
+  font-family: var(--font-heading);
+  font-size: 1.5rem;
+  font-weight: 400;
+  line-height: 1.2;
+  min-width: 0;
+}
+.atlas-summary { color: var(--text-muted); font-size: 0.8125rem; }
+
+.atlas-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.5rem;
+  padding: 0.375rem 1.25rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.atlas-toolbar-spacer { flex: 1; }
+.atlas-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+
+.atlas-empty { margin: auto; max-width: 36rem; }
+.atlas-empty-title {
+  font-family: var(--font-heading);
+  font-size: 1.25rem;
+  font-weight: 400;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+.atlas-empty-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 1rem 0 0.75rem;
+}
+
+.chip {
+  font: inherit;
+  font-size: 0.8125rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  max-width: 16rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip:hover { background: var(--surface-3); }
+.chip.is-on { border-color: var(--border-strong); background: var(--surface-2); color: var(--text); }
+.chip:not(.is-on) .type-mark, .chip:not(.is-on) .chip-dot { opacity: 0.35; }
+.chip-count { color: var(--text-muted); font-size: 0.75rem; }
+.chip-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--tl-color);
+}
+
+.type-mark { flex: none; width: 0.75rem; height: 0.75rem; }
+
+.atlas-map-links {
+  margin: 0.125rem 0 0 0.5rem;
+  padding-left: 0.25rem;
+  border-left: 1px solid var(--border);
+}
+
+.atlas-context-menu { position: fixed; min-width: 13rem; max-width: 22rem; }
+
+/* ---- Windowed lists --------------------------------------------------------- */
+.windowed-list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-anchor: none;
+}
+.windowed-list:focus-visible { outline-offset: -2px; }
+.windowed-list-probe {
+  position: absolute;
+  width: 1px;
+  height: 1rem;
+  visibility: hidden;
+  pointer-events: none;
+}
+.windowed-list-space { position: relative; }
+.windowed-list-row { position: absolute; left: 0; right: 0; }
+
+/* ---- Autocomplete ----------------------------------------------------------- */
+.autocomplete { position: relative; min-width: 0; }
+.autocomplete-popup {
+  position: fixed;
+  z-index: 120;
+  max-height: 16rem;
+  overflow-y: auto;
+  padding: 0.25rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.375rem;
+  box-shadow: var(--shadow);
+}
+.autocomplete-popup[hidden] { display: none; }
+.autocomplete-popup .menu-item { gap: 0.75rem; }
+.autocomplete-popup .menu-item.is-highlighted { background: var(--surface-3); }
+
+/* ---- Timeline --------------------------------------------------------------- */
+.tl-kind-event { --tl-color: var(--atlas-event); }
+.tl-kind-birth { --tl-color: var(--success); }
+.tl-kind-death { --tl-color: var(--danger); }
+.tl-kind-founding { --tl-color: var(--warning); }
+.tl-kind-dissolution { --tl-color: color-mix(in srgb, var(--warning) 50%, var(--danger)); }
+.tl-kind-scene { --tl-color: var(--link); }
+.tl-kind-change { --tl-color: color-mix(in srgb, var(--link) 45%, var(--success)); }
+.tl-kind-other { --tl-color: var(--text-muted); }
+
+.tl-page-filter { width: 12rem; }
+.tl-page-filter .input, .atlas-toolbar .select { padding-block: 0.125rem; font-size: 0.8125rem; }
+
+.tl-zoom { display: inline-flex; align-items: center; gap: 0.25rem; }
+.tl-zoom-label {
+  min-width: 7rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.tl-body { flex: 1; min-height: 0; display: flex; }
+.tl-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
+.tl-row {
+  display: grid;
+  grid-template-columns: 11rem 1.5rem minmax(0, auto) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 0.5rem;
+  height: 100%;
+  padding: 0 1.25rem;
+}
+.tl-row:hover { background: var(--surface); }
+.tl-row.is-new-year { box-shadow: inset 0 1px 0 var(--border); }
+.tl-row.is-new-year .tl-date { color: var(--text); }
+.windowed-list-row[data-row='0'] .tl-row.is-new-year { box-shadow: none; }
+.tl-date {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.tl-rail {
+  position: relative;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tl-rail::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--border-strong);
+}
+.tl-mark {
+  position: relative;
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--tl-color);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.tl-mark-span { width: 0.5rem; height: 1.375rem; border-radius: 0.25rem; }
+.tl-title { min-width: 0; font-weight: 500; }
+.tl-detail { color: var(--text-muted); font-size: 0.8125rem; min-width: 0; }
+.tl-problem { background: var(--del-bg); color: var(--del-text); }
+
+.tl-bucket {
+  font: inherit;
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr) 3.5rem;
+  gap: 0.75rem;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0 1.25rem;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: zoom-in;
+}
+.tl-bucket:hover { background: var(--surface); }
+.tl-bucket:focus-visible { outline-offset: -2px; }
+.tl-bucket-label {
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-heading);
+  font-size: 1rem;
+}
+.tl-bucket-main { display: grid; gap: 0.25rem; min-width: 0; }
+.tl-bucket-bar {
+  display: flex;
+  height: 0.625rem;
+  min-width: 0.25rem;
+  overflow: hidden;
+  border-radius: 0.1875rem;
+}
+.tl-bucket-part { flex-basis: 0; min-width: 1px; background: var(--tl-color); }
+.tl-bucket-titles { color: var(--text-muted); font-size: 0.75rem; }
+.tl-bucket-count {
+  text-align: right;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+.tl-gap {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 1.25rem 0 12.75rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.tl-unplaced {
+  flex: 0 0 21rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+.tl-unplaced-title { font-size: 0.9375rem; padding: 0.625rem 0.875rem 0; }
+.tl-unplaced-intro {
+  padding: 0.125rem 0.875rem 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  border-bottom: 1px solid var(--border);
+}
+.tl-unplaced-item {
+  display: grid;
+  align-content: center;
+  gap: 0.0625rem;
+  height: 100%;
+  padding: 0 0.875rem;
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--tl-color);
+}
+.tl-unplaced-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-width: 0; }
+.tl-unplaced-date { font-size: 0.8125rem; color: var(--text); }
+.tl-unplaced-reason {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.era-empty { margin-bottom: 0.5rem; }
+.era-table { margin-bottom: 0.25rem; }
+.era-table td { padding: 0.25rem 0.375rem; vertical-align: middle; }
+.era-table th { padding: 0.25rem 0.375rem; }
+.era-offset { max-width: 6rem; }
+.era-add { margin: 0.5rem 0 0.75rem; }
+.era-sample { margin-top: 0.25rem; }
+
+/* ---- Graph ------------------------------------------------------------------ */
+.graph-search { width: 12rem; padding-block: 0.125rem; font-size: 0.8125rem; }
+.graph-stage { position: relative; flex: 1; min-height: 0; background: var(--bg); }
+.graph-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+.graph-canvas:focus-visible { outline-offset: -2px; }
+.graph-camera { position: absolute; top: 0.625rem; right: 0.75rem; display: flex; gap: 0.25rem; }
+.graph-status {
+  flex: none;
+  overflow: hidden;
+  padding: 0.25rem 1.25rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.graph-list-row {
+  display: grid;
+  grid-template-columns: 1rem minmax(8rem, 15rem) 6.75rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.625rem;
+  height: 100%;
+  padding: 0 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.graph-list-row:hover, .rel-row:hover { background: var(--surface); }
+.graph-list-count { color: var(--text-muted); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.graph-list-connections { color: var(--text-muted); font-size: 0.8125rem; min-width: 0; }
+
+.rel-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 9rem) minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.625rem;
+  height: 100%;
+  padding: 0 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+.rel-kind { color: var(--text); font-size: 0.8125rem; text-align: center; }
+.rel-note { color: var(--text-muted); font-size: 0.8125rem; }
+.rel-preview { margin-bottom: 0.5rem; }
+
+/* Sections other modules can place on a page. */
+.page-relationships, .appears-on-maps { margin: 1rem 0; }
+.page-extra-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 0.375rem; }
+.page-extra-title { font-size: 0.9375rem; margin-bottom: 0.25rem; }
+.page-extra-head .page-extra-title { margin-bottom: 0; }
+.page-extra-actions { display: inline-flex; gap: 0.375rem; }
+.page-relationship-list, .appears-on-maps-list { list-style: none; display: grid; gap: 0.25rem; }
+.page-relationship { display: flex; align-items: center; gap: 0.375rem; }
+.page-relationship-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+/* ---- Maps ------------------------------------------------------------------- */
+.map-layout { flex: 1; min-height: 0; display: flex; }
+.map-frame { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.map-stage-frame { position: relative; flex: 1; min-height: 0; }
+.map-toggle { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8125rem; cursor: pointer; }
+.map-toggle input { accent-color: var(--accent); }
+
+.map-viewport {
+  position: absolute;
+  inset: 0;
+  /* Not hidden: a hidden box still scrolls to show a focused pin, which would throw off
+     every position worked out from the view. */
+  overflow: clip;
+  background: var(--bg-sunken);
+  cursor: crosshair;
+  touch-action: none;
+}
+.map-viewport:focus-visible { outline-offset: -2px; }
+.map-viewport.is-panning { cursor: grabbing; }
+.map-stage {
+  --map-scale: 1;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+.map-image { display: block; width: 100%; height: 100%; user-select: none; }
+
+/* The pin's tip sits exactly on its position. The inverse scale keeps pins the same size
+   on screen whatever the zoom. */
+.map-pin {
+  font: inherit;
+  position: absolute;
+  display: block;
+  width: 1.125rem;
+  height: 1.375rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  transform-origin: 0 0;
+  transform: scale(calc(1 / var(--map-scale))) translate(-50%, -100%);
+}
+.map-pin:hover, .map-pin:focus-visible { z-index: 4; }
+.map-pin:focus-visible { outline: none; }
+.map-pin:focus-visible .map-pin-mark { outline: 2px solid var(--text); outline-offset: 1px; }
+.map-pin.is-dragging { z-index: 5; cursor: grabbing; }
+.map-pin.is-ghost { pointer-events: none; opacity: 0.75; }
+.map-pin-mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1.125rem;
+  height: 1.125rem;
+  border: 2px solid var(--bg);
+  border-radius: 50% 50% 50% 0;
+  background: var(--accent);
+  transform: rotate(-45deg);
+}
+.map-pin:hover .map-pin-mark { background: var(--accent-hover); }
+.map-pin.is-orphan .map-pin-mark { background: var(--text-faint); }
+.map-pin-label {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 0.25rem);
+  padding: 0 0.3125rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.1875rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.map-pin.is-orphan .map-pin-label { color: var(--text-muted); font-style: italic; }
+.hide-labels .map-pin-label { display: none; }
+.hide-labels .map-pin:hover .map-pin-label, .hide-labels .map-pin:focus-visible .map-pin-label { display: block; }
+.map-pin.is-flash .map-pin-label { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.map-pin.is-flash .map-pin-mark { box-shadow: 0 0 0 3px var(--accent); }
+
+.map-pin-editor {
+  position: absolute;
+  z-index: 20;
+  width: 19rem;
+  padding: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.5rem;
+  box-shadow: var(--shadow);
+}
+.map-pin-editor .field { margin-bottom: 0.25rem; }
+.map-pin-editor .dialog-actions { margin-top: 0.625rem; }
+.map-pin-editor-hint { margin: 0; }
+
+.map-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+.map-message {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  color: var(--danger);
+  text-align: center;
+}
+
+.map-side {
+  flex: 0 0 20rem;
+  overflow-y: auto;
+  padding: 0.75rem;
+  border-left: 1px solid var(--border);
+  background: var(--surface);
+}
+.map-side-title { font-size: 0.9375rem; margin-bottom: 0.5rem; }
+.map-side-empty { font-size: 0.8125rem; }
+.map-pin-list { list-style: none; display: grid; gap: 0.125rem; }
+.map-pin-row {
+  display: grid;
+  grid-template-columns: 0.75rem minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.25rem 0.375rem;
+  padding: 0.1875rem 0.25rem;
+  border-radius: 0.25rem;
+}
+.map-pin-row:hover { background: var(--surface-2); }
+/* A label has no page to open, so its name stretches across that button's place. */
+.map-pin-row:not(:has(> :nth-child(5))) { grid-template-columns: 0.75rem minmax(0, 1fr) auto auto; }
+.map-pin-row-name { min-width: 0; }
+.map-pin-row-dot { width: 0.625rem; height: 0.625rem; border-radius: 50%; background: var(--accent); }
+
+.map-grid {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border);
+}
+.map-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--surface);
+  overflow: hidden;
+}
+.map-card-open {
+  font: inherit;
+  display: grid;
+  gap: 0.125rem;
+  padding: 0;
+  padding-bottom: 0.375rem;
+  border: none;
+  background: none;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.map-card-open:hover .map-card-title { color: var(--link-hover); }
+.map-card-open:focus-visible { outline-offset: -2px; }
+.map-thumb {
+  display: block;
+  aspect-ratio: 16 / 10;
+  margin-bottom: 0.25rem;
+  background: var(--bg-sunken);
+}
+.map-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.map-thumb-empty { display: block; height: 100%; }
+.map-card-title { padding: 0 0.625rem; font-weight: 500; }
+.map-card-meta { padding: 0 0.625rem; color: var(--text-muted); font-size: 0.75rem; }
+.map-card-actions { display: flex; gap: 0.25rem; padding: 0 0.625rem 0.625rem; }
+
+.map-trash { padding: 0.75rem 1.25rem 1.5rem; border-top: 1px solid var(--border); }
+.map-trash-list { list-style: none; display: grid; gap: 0.25rem; }
+.map-trash-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem 0.625rem; }
+.map-trash-name { max-width: 20rem; }
+
+/* ---- Spellcheck ------------------------------------------------------------- */
+.spell-error {
+  text-decoration: underline wavy var(--danger);
+  text-decoration-thickness: 0.07em;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.16em;
+}
+.spell-menu { position: fixed; z-index: 150; top: 0; left: 0; min-width: 14rem; max-width: 26rem; }
+.spell-suggestion { font-weight: 500; }
+
+.dictionary-add { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+.dictionary-empty { padding: 0.5rem 0; }
+.dictionary-list {
+  list-style: none;
+  display: grid;
+  gap: 0.125rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+.dictionary-word {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+.dictionary-word:hover { background: var(--surface-2); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .map-pin.is-flash .map-pin-mark { animation: map-pin-pulse 0.5s ease-in-out 3; }
+}
+@keyframes map-pin-pulse {
+  50% { box-shadow: 0 0 0 7px var(--selection); }
+}
+
+/* A narrow window cannot hold a side column as well as the content. */
+@media (max-width: 62rem) {
+  .tl-body, .map-layout { flex-direction: column; }
+  .tl-unplaced, .map-side { flex: 0 0 34%; border-left: none; border-top: 1px solid var(--border); }
+}
+
+/* ---- Family tree ------------------------------------------------------------ */
+.family-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem 1.25rem 2rem;
+}
+.family-block { margin-bottom: 2.5rem; width: max-content; min-width: 100%; }
+/* Stays in view while a wide tree scrolls sideways. */
+.family-block-title {
+  position: sticky;
+  left: 0;
+  width: fit-content;
+  font-size: 0.9375rem;
+  margin-bottom: 0.5rem;
+}
+.family-scroll::-webkit-scrollbar-corner { background: transparent; }
+.family-find { width: 16rem; }
+.family-canvas { position: relative; }
+.family-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.family-lines path {
+  fill: none;
+  stroke-width: 1.5px;
+  /* The drawing's units are rem, and a line should stay this thin at any size. */
+  vector-effect: non-scaling-stroke;
+}
+.family-parent-lines { stroke: var(--border-strong); }
+.family-spouse-lines { stroke: var(--text-muted); }
+.family-card {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.0625rem;
+  padding: 0.25rem 0.625rem;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.375rem;
+  cursor: pointer;
+}
+.family-card:hover { background: var(--surface-3); }
+.family-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.family-card.is-focus {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.family-card.is-missing {
+  color: var(--link-red);
+  background: var(--surface);
+  border-style: dashed;
+}
+.family-card-title { font-size: 0.875rem; font-weight: 600; }
+.family-card-dates { font-size: 0.75rem; color: var(--text-muted); }
+.family-list { max-width: 48rem; }
+.family-generation { font-size: 0.8125rem; color: var(--text-muted); margin: 0.75rem 0 0.25rem; }
+.family-people { list-style: none; display: grid; gap: 0.5rem; }
+.family-person { padding: 0.25rem 0.5rem; border-left: 2px solid var(--border); }
+.family-person.is-focus { border-left-color: var(--accent); }
+.family-person-detail { font-size: 0.8125rem; }
+.family-missing-link { color: var(--link-red); }
+.family-loops {
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  max-width: 48rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+}
+.family-loops ul { margin: 0.25rem 0 0 1.25rem; }

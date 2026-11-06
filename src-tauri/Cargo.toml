@@ -1,0 +1,87 @@
+[package]
+name = "lorecraft"
+version = "0.1.0"
+description = "A Wikipedia-style lorebook and novel writer with local or frontier AI."
+edition = "2021"
+rust-version = "1.89"
+license = "AGPL-3.0-only"
+repository = "https://github.com/CodeCat04/LoreCraft"
+
+[lib]
+name = "lorecraft_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lorecraft"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
+serde = { version = "1", features = ["derive"] }
+# preserve_order: AI tool inputs and thinking blocks must be replayed to the provider
+# exactly as received, and that includes key order.
+serde_json = { version = "1", features = ["preserve_order"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
+uuid = { version = "1", features = ["v7"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+thiserror = "2"
+aho-corasick = "1"
+base64 = "0.22"
+sha2 = "0.10"
+regex = "1"
+semver = "1"
+os_info = { version = "3", default-features = false }
+reqwest = { version = "0.13", features = ["json", "stream"] }
+futures-util = "0.3"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "net", "io-std", "io-util"] }
+# crypto-rust: on Linux, keys cross the session bus encrypted rather than in plain text.
+keyring = { version = "3", features = ["windows-native", "apple-native", "sync-secret-service", "crypto-rust"] }
+# The MCP server for AI tools outside the app. See docs/MCP.md.
+rmcp = { version = "3.9", default-features = false, features = ["server", "client", "transport-io", "transport-streamable-http-server", "transport-streamable-http-client-reqwest"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+bytes = "1"
+tokio-util = "0.7"
+dirs = "7"
+getrandom = "0.3"
+lorecraft-minilm = { path = "minilm" }
+# Reading the compressed streams of PDFs from WebKitGTK (src/rpc/print_stamp.rs). Already
+# in the build through other crates.
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+
+# These must stay at the versions wry uses, because `print_devtools` in lib.rs calls its
+# webview directly. Cargo reports a type mismatch at build time if they drift.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+windows = { version = "0.62", features = ["Win32_UI_WindowsAndMessaging"] }
+
+# PDFs on Linux use WebKitGTK's print operation (src/rpc/print_linux.rs). Both crates come
+# with wry already, and must stay at its versions.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "=2.0.2", features = ["v2_38"] }
+gtk = "0.18"
+
+[profile.dev]
+incremental = true
+debug = 1
+
+[profile.dev.package."*"]
+opt-level = 1
+
+# Search by meaning is only usable optimized, and this crate compiles in seconds.
+[profile.dev.package.lorecraft-minilm]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
+panic = "unwind"

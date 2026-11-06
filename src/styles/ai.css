@@ -1,0 +1,370 @@
+/* The AI module. Interface sizes in rem. Anything inside a document in em, so it follows
+   the writing-text setting. Colors come only from theme tokens. */
+
+/* ---- Tracked changes, inside documents ------------------------------------- */
+.prose .ai-del {
+  background: var(--del-bg);
+  color: var(--del-text);
+  text-decoration: line-through;
+  text-decoration-color: var(--del-text);
+  border-radius: 0.1em;
+}
+.prose .ai-del-node { outline: 2px solid var(--del-text); outline-offset: 1px; opacity: 0.75; }
+.prose .ai-del.is-active { box-shadow: 0 0 0 1px var(--del-text); }
+
+.prose .ai-hunk { white-space: pre-wrap; }
+.prose .ai-del + .ai-hunk .ai-ins { margin-left: 0.15em; }
+.prose .ai-ins {
+  background: var(--ins-bg);
+  color: var(--ins-text);
+  border-radius: 0.1em;
+  text-decoration: underline;
+  text-decoration-color: var(--ins-text);
+  text-underline-offset: 0.15em;
+}
+.prose .ai-ins a { color: inherit; }
+.prose .ai-ins-block { display: block; margin: 0 0 0.75em; }
+.prose .ai-ins-block > * { margin: 0; color: inherit; }
+.prose .ai-ins-break { display: block; height: 0.6em; }
+.prose .ai-hunk.is-active .ai-ins { box-shadow: 0 0 0 1px var(--ins-text); }
+
+.prose .ai-hunk-actions {
+  display: inline-flex;
+  gap: 0.1em;
+  margin: 0 0.2em;
+  vertical-align: 0.05em;
+  user-select: none;
+}
+.prose .ai-hunk-btn {
+  font: 500 0.75rem/1 var(--font-ui);
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 0.2rem;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.prose .ai-hunk-accept:hover, .prose .ai-hunk-accept:focus-visible { background: var(--ins-bg); color: var(--ins-text); border-color: var(--ins-text); }
+.prose .ai-hunk-reject:hover, .prose .ai-hunk-reject:focus-visible { background: var(--del-bg); color: var(--del-text); border-color: var(--del-text); }
+
+.prose .ai-target { background: var(--selection); border-radius: 0.1em; }
+.prose .ai-preview:not(:empty) {
+  white-space: pre-wrap;
+  color: var(--ins-text);
+  background: var(--ins-bg);
+  opacity: 0.8;
+  border-radius: 0.1em;
+  margin-left: 0.25em;
+}
+.prose .ai-stale {
+  text-decoration: underline wavy var(--warning);
+  text-underline-offset: 0.2em;
+}
+/* The placeholder would sit on top of text suggested for an empty page. */
+.ProseMirror.has-ai-suggestion p.is-editor-empty:first-child::before { content: none; }
+
+/* ---- The bars under a document ------------------------------------------------- */
+.ai-bars {
+  position: sticky;
+  bottom: 0.5rem;
+  z-index: 15;
+  display: grid;
+  gap: 0.375rem;
+  margin-top: 0.75rem;
+}
+.ai-bar {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.375rem;
+  box-shadow: var(--shadow);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+}
+.ai-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
+.ai-bar-text { flex: 1; min-width: 8rem; }
+.ai-bar-stale .ai-bar-text { color: var(--warning); }
+
+/* ---- Floating over a selection ------------------------------------------------ */
+.ai-float {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 0.375rem;
+  box-shadow: var(--shadow);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  color: var(--text);
+}
+.ai-menu { display: flex; gap: 0.25rem; padding: 0.25rem; }
+.ai-ask { width: min(30rem, calc(100vw - 2rem)); padding: 0.5rem; display: grid; gap: 0.375rem; }
+.ai-ask-input { resize: vertical; min-height: 3rem; }
+.ai-quick { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.ai-more { padding: 0.125rem 0.25rem; font-size: 0.8125rem; }
+.ai-ask-status { display: flex; align-items: center; gap: 0.5rem; }
+.ai-ask-status-text { flex: 1; }
+.ai-ask-thinking {
+  max-height: 6rem;
+  overflow-y: auto;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  background: var(--bg-sunken);
+  border-radius: 0.25rem;
+  white-space: pre-wrap;
+}
+.ai-ask-failure {
+  padding: 0.5rem;
+  border: 1px solid var(--danger);
+  border-radius: 0.25rem;
+  overflow-wrap: anywhere;
+}
+.ai-ask-failure-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.375rem; }
+.ai-ask-foot { display: flex; align-items: center; gap: 0.375rem; font-size: 0.8125rem; min-width: 0; }
+.ai-sent-preview { max-height: 16rem; overflow: auto; border-top: 1px solid var(--border); padding-top: 0.375rem; }
+.ai-ask-profile { display: inline-flex; align-items: center; gap: 0.25rem; }
+.ai-ask-profile .select { padding: 0.0625rem 0.25rem; font-size: 0.8125rem; max-width: 9rem; }
+.ai-ask-where { white-space: nowrap; }
+.ai-ask-spacer { flex: 1; }
+
+.ai-pulse {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.25rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: ai-pulse 1.2s ease-in-out infinite;
+}
+@keyframes ai-pulse { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .ai-pulse { animation: none; } }
+
+/* ---- The pane ------------------------------------------------------------------ */
+.ai-pane-body { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.ai-pane-head { flex: 0 0 auto; display: grid; gap: 0.375rem; padding: 0.5rem 0.625rem 0; border-bottom: 1px solid var(--border); }
+.ai-pane-row { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.ai-conversation, .ai-profile, .ai-model { min-width: 0; flex: 1; padding: 0.1875rem 0.25rem; font-size: 0.8125rem; text-overflow: ellipsis; }
+.ai-pane-close { font-size: 1.125rem; margin-left: 0.125rem; }
+.ai-pane-tabs { margin-bottom: -1px; border-bottom: none; flex-wrap: wrap; row-gap: 0; }
+.ai-pane-tabs .settings-tab { padding-left: 0.5rem; padding-right: 0.5rem; }
+
+.ai-conversation-wrap { position: relative; flex: 1; min-height: 0; display: flex; }
+.ai-messages { flex: 1; min-width: 0; overflow-y: auto; padding: 0.625rem; display: flex; flex-direction: column; gap: 0.75rem; }
+.ai-jump { position: absolute; left: 50%; bottom: 0.5rem; transform: translateX(-50%); box-shadow: var(--shadow); }
+.ai-empty { margin: auto 0; padding: 1rem; text-align: center; color: var(--text-muted); display: grid; gap: 0.5rem; }
+
+.ai-message { min-width: 0; overflow-wrap: anywhere; }
+.ai-message-user {
+  align-self: flex-end;
+  max-width: 92%;
+  padding: 0.375rem 0.625rem;
+  background: var(--surface-3);
+  border-radius: 0.5rem;
+}
+.ai-user-text { white-space: pre-wrap; }
+.ai-sent-chips { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.25rem; }
+.ai-sent-chip { font-size: 0.75rem; padding: 0 0.375rem; border-radius: 0.1875rem; background: var(--surface-2); color: var(--text-muted); }
+
+.ai-message-assistant { display: grid; gap: 0.375rem; }
+.ai-md { line-height: 1.5; }
+.ai-md > :first-child { margin-top: 0; }
+.ai-md > :last-child { margin-bottom: 0; }
+.ai-md p, .ai-md ul, .ai-md ol, .ai-md blockquote, .ai-md pre { margin: 0 0 0.5rem; }
+.ai-md ul, .ai-md ol { padding-inline-start: 1.25rem; }
+.ai-md h1, .ai-md h2, .ai-md h3, .ai-md h4 { margin: 0.625rem 0 0.25rem; font-size: 1rem; }
+.ai-md blockquote { padding-inline-start: 0.625rem; border-inline-start: 3px solid var(--border-strong); color: var(--text-muted); }
+
+/* A reply can be in any language, and its blocks are not ours to mark with a direction. */
+.ai-md :is(p, li, h1, h2, h3, h4, blockquote) { unicode-bidi: plaintext; text-align: start; }
+.ai-md pre { padding: 0.5rem; overflow-x: auto; background: var(--bg-sunken); border-radius: 0.25rem; }
+.ai-md code { font-family: var(--font-mono); font-size: 0.9em; }
+.ai-md a { color: var(--link); cursor: pointer; text-decoration: none; }
+.ai-md a:hover { color: var(--link-hover); text-decoration: underline; }
+.ai-md table { border-collapse: collapse; margin-bottom: 0.5rem; }
+.ai-md th, .ai-md td { border: 1px solid var(--border-strong); padding: 0.125rem 0.375rem; }
+
+.ai-thinking { font-size: 0.8125rem; color: var(--text-muted); }
+.ai-thinking summary { cursor: pointer; color: var(--text-faint); }
+.ai-thinking-body { margin-top: 0.25rem; padding: 0.375rem 0.5rem; white-space: pre-wrap; background: var(--bg-sunken); border-radius: 0.25rem; max-height: 16rem; overflow-y: auto; }
+
+.ai-tool { font-size: 0.8125rem; }
+.ai-tool summary {
+  display: inline-block;
+  cursor: pointer;
+  padding: 0.0625rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-tool.is-error summary { border-color: var(--warning); color: var(--warning); }
+.ai-tool-result { margin: 0.25rem 0 0; padding: 0.375rem 0.5rem; max-height: 14rem; overflow: auto; white-space: pre-wrap; font-family: var(--font-mono); font-size: 0.75rem; background: var(--bg-sunken); border-radius: 0.25rem; }
+
+.ai-proposal { display: grid; gap: 0.375rem; padding: 0.5rem; border: 1px solid var(--border-strong); border-radius: 0.375rem; background: var(--surface-2); margin-top: 0.25rem; justify-items: start; }
+.ai-proposal-title { font-weight: 600; }
+.ai-proposal-diff { display: grid; gap: 0.25rem; font-size: 0.8125rem; }
+.ai-proposal-diff del, .ai-review-diff del { background: var(--del-bg); color: var(--del-text); }
+.ai-proposal-diff ins, .ai-review-diff ins { background: var(--ins-bg); color: var(--ins-text); text-decoration: none; }
+.ai-proposal-body { width: 100%; font-size: 0.8125rem; }
+
+.ai-note { font-size: 0.8125rem; color: var(--text-muted); font-style: italic; }
+.ai-waiting { display: flex; align-items: center; gap: 0.25rem; color: var(--text-muted); font-size: 0.8125rem; }
+.ai-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+.ai-message-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+.ai-usage { font-size: 0.75rem; }
+
+.ai-error { padding: 0.5rem 0.625rem; border: 1px solid var(--danger); border-radius: 0.375rem; background: var(--surface-2); display: grid; gap: 0.375rem; overflow-wrap: anywhere; }
+.ai-error-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+
+.ai-composer { flex: 0 0 auto; padding: 0.5rem 0.625rem; border-top: 1px solid var(--border); display: grid; gap: 0.375rem; }
+.ai-input { resize: vertical; min-height: 3.25rem; max-height: 40vh; }
+.ai-composer-foot { display: flex; align-items: center; gap: 0.375rem; min-width: 0; }
+.ai-chips { display: grid; gap: 0.25rem; }
+.ai-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  padding: 0.125rem 0.25rem 0.125rem 0.5rem;
+  font-size: 0.8125rem;
+  background: var(--surface-3);
+  border-radius: 0.25rem;
+  min-width: 0;
+}
+.ai-chip-title { font-weight: 500; white-space: nowrap; }
+.ai-chip-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); }
+.ai-chip-remove { font: inherit; border: none; background: none; color: var(--text-muted); cursor: pointer; padding: 0 0.25rem; }
+.ai-chip-remove:hover { color: var(--text); }
+.ai-totals { flex: 0 0 auto; padding: 0 0.625rem 0.375rem; }
+
+/* ---- What is sent ------------------------------------------------------------- */
+.ai-context, .ai-prompts { flex: 1; min-height: 0; overflow-y: auto; padding: 0.625rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.ai-context-where { padding: 0.5rem 0.625rem; border-radius: 0.375rem; background: var(--ins-bg); color: var(--ins-text); }
+.ai-context-where.is-cloud { background: var(--del-bg); color: var(--del-text); }
+.ai-context-reask { margin-left: 0.375rem; color: inherit; text-decoration: underline; }
+.ai-context-total { font-size: 0.8125rem; display: grid; gap: 0.25rem; }
+.ai-context-bar { height: 0.375rem; border-radius: 0.1875rem; background: var(--surface-3); overflow: hidden; }
+.ai-context-bar > div { height: 100%; background: var(--accent); }
+.ai-context-bar > div.is-over { background: var(--danger); }
+.ai-context-limit { display: flex; align-items: center; flex-wrap: wrap; gap: 0.375rem; font-size: 0.8125rem; }
+.ai-context-limit .select { flex: 1; min-width: 0; padding: 0.125rem 0.25rem; font-size: 0.8125rem; }
+.ai-context-head { font-size: 0.75rem; font-weight: 600; color: var(--text-faint); margin-top: 0.25rem; }
+.ai-context-item { padding: 0.375rem 0.5rem; background: var(--surface-2); border-radius: 0.25rem; }
+.ai-context-item.is-out { opacity: 0.7; }
+.ai-context-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; }
+.ai-context-title { flex: 1; min-width: 6rem; font-weight: 500; }
+.ai-context-badge { margin-left: 0.375rem; font-weight: 400; }
+.ai-context-tokens { white-space: nowrap; margin-right: 0.25rem; }
+.ai-context-text { margin-top: 0.25rem; font-size: 0.8125rem; }
+.ai-context-text summary { cursor: pointer; color: var(--text-faint); }
+.ai-context-text pre { margin: 0.25rem 0 0; padding: 0.375rem; max-height: 18rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.75rem; font-family: var(--font-mono); background: var(--bg-sunken); border-radius: 0.25rem; }
+
+/* ---- Prompts ------------------------------------------------------------------- */
+.ai-prompt-head { justify-content: space-between; }
+.ai-prompt-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-start; }
+.ai-prompt-list { list-style: none; display: grid; gap: 0.375rem; }
+.ai-prompt-item { padding: 0.375rem 0.5rem; background: var(--surface-2); border-radius: 0.25rem; display: grid; gap: 0.125rem; }
+.ai-prompt-name { font-weight: 500; }
+.ai-prompt-actions { display: flex; gap: 0.25rem; margin-top: 0.25rem; }
+.ai-prompt-editor .textarea { font-size: 0.8125rem; }
+
+/* ---- Reviewing a field --------------------------------------------------------- */
+.ai-review-diff { padding: 0.5rem; margin-bottom: 0.75rem; background: var(--bg-sunken); border-radius: 0.25rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-review-fields { display: grid; gap: 0.25rem; max-height: 50vh; overflow-y: auto; }
+
+/* ---- Talking to a character ---------------------------------------------------- */
+.ai-character-pick { flex: 0 1 6.5rem; min-width: 0; padding: 0.1875rem 0.25rem; font-size: 0.8125rem; text-overflow: ellipsis; }
+.ai-character-banner { display: grid; gap: 0.25rem; padding: 0.5rem 0.625rem; border: 1px solid var(--accent); border-radius: 0.375rem; background: var(--surface-2); }
+.ai-character-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
+.ai-character-speaker { font-size: 0.75rem; font-weight: 600; color: var(--text-faint); }
+
+/* ---- Beta-reader feedback ------------------------------------------------------- */
+.ai-beta { flex: 1; min-height: 0; overflow-y: auto; padding: 0.625rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.ai-beta-field { margin: 0; }
+.ai-beta-field .select { width: 100%; }
+.ai-beta-run { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.ai-beta-result { display: grid; gap: 0.5rem; }
+.ai-beta-notes { list-style: none; display: grid; gap: 0.375rem; margin: 0; padding: 0; }
+.ai-beta-note {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.375rem 0.5rem;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+.ai-beta-note:hover, .ai-beta-note:focus-visible { border-color: var(--accent); }
+.ai-beta-quote { padding-left: 0.5rem; border-left: 3px solid var(--border-strong); color: var(--text-muted); font-style: italic; overflow-wrap: anywhere; }
+
+/* ---- Several versions of a rewrite ------------------------------------------------ */
+.ai-quick { align-items: center; }
+.ai-ask-several { margin: 0 0 0 auto; white-space: nowrap; }
+.ai-versions { width: min(72rem, calc(100vw - 2rem)); max-height: calc(100vh - 1rem); overflow-y: auto; padding: 0.5rem; }
+.ai-versions-body { display: grid; gap: 0.375rem; outline: none; }
+.ai-versions-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; font-size: 0.8125rem; min-width: 0; }
+.ai-versions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0.5rem; }
+.ai-version { display: flex; flex-direction: column; min-width: 0; padding: 0.375rem 0.5rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 0.25rem; }
+.ai-version-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.375rem; }
+.ai-version-title { margin: 0; font-size: 0.8125rem; font-weight: 600; }
+.ai-version-text { flex: 1; min-height: 6rem; max-height: min(22rem, 45vh); overflow-y: auto; margin: 0.25rem 0; overflow-wrap: anywhere; }
+.ai-version-foot { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+
+/* ---- Settings: finding servers on this computer ------------------------------------ */
+.ai-find { margin-bottom: 0.75rem; }
+.ai-find-list { list-style: none; display: grid; gap: 0.25rem; margin: 0; padding: 0; }
+.ai-find-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.5rem; background: var(--surface-2); border-radius: 0.25rem; min-width: 0; }
+.ai-find-text { flex: 1; min-width: 0; }
+
+/* ---- The status bar ---------------------------------------------------------------- */
+.ai-status { max-width: min(32rem, 45vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-item.link-button.ai-status.is-failed { color: var(--warning); }
+
+/* ---- The test bench, which only the E2E tests can open ----------------------------- */
+.ai-e2e-bench { padding: 1.5rem 2rem; max-width: 70rem; }
+#ai-e2e-bench ~ * { display: none; }
+
+/* ---- The story so far ---------------------------------------------------------- */
+.ai-story-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; font-size: 0.875rem; }
+.ai-story-item { padding: 0.5rem 0.625rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.375rem; font-size: 0.875rem; }
+.ai-story-text { margin: 0.25rem 0; white-space: pre-wrap; }
+.ai-story-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.25rem; margin-top: 0.25rem; }
+.ai-context-local { margin: 0; font-size: 0.875rem; }
+.ai-settings-short { max-width: 10rem; }
+.ai-settings-spent { margin: 0.5rem 0 0; }
+
+/* ---- Settings ------------------------------------------------------------------ */
+.ai-settings { max-width: 44rem; }
+.ai-settings-head { font-size: 1rem; margin: 1.25rem 0 0.5rem; }
+.ai-settings-head:first-child { margin-top: 0; }
+.ai-settings-plain { display: grid; gap: 0.5rem; }
+.ai-settings-plain p { color: var(--text-muted); }
+.ai-settings-profiles { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; border-bottom: 1px solid var(--border); margin-bottom: 0.75rem; }
+.ai-settings-add { margin-left: auto; display: inline-flex; align-items: center; gap: 0.25rem; padding-bottom: 0.25rem; }
+.ai-settings-card { padding: 0.75rem; background: var(--surface); border: 1px solid var(--border); border-radius: 0.375rem; }
+.ai-settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0 0.75rem; }
+.ai-settings-numbers { margin-top: 0.5rem; }
+.ai-settings-card .select { width: 100%; }
+.ai-settings-inline { display: flex; gap: 0.375rem; align-items: center; }
+.ai-settings-inline .input { flex: 1; min-width: 0; }
+.ai-settings-test { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem; margin-bottom: 0.75rem; }
+.ai-settings-ok { color: var(--success); }
+.ai-settings-problem { color: var(--danger); overflow-wrap: anywhere; }
+.ai-settings-cloud { margin-bottom: 0.25rem; }
+.ai-settings-routing { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0 0.75rem; }
+.ai-settings-routing .select { width: 100%; }

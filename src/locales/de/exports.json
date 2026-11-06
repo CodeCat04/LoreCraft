@@ -1,0 +1,7 @@
+{
+  "Include pages and scenes marked local only": "Seiten und Szenen einschließen, die als nur lokal markiert sind",
+  "Left out unless ticked, as the AI server does, because AI tools may send this file to a cloud service.": "Bleiben außen vor, wenn das nicht angehakt ist, wie beim KI-Server, denn KI-Werkzeuge können diese Datei an einen Cloud-Dienst senden.",
+  "Pages and scenes marked local only were left out. To add them, tick \"Include pages and scenes marked local only\".": "Seiten und Szenen, die als nur lokal markiert sind, wurden ausgelassen. Um sie hinzuzufügen, hake „Seiten und Szenen einschließen, die als nur lokal markiert sind“ an.",
+  "\"{code}\" is not a language code such as en or pt-BR, so the ebook says it is in English (en).": "„{code}“ ist kein Sprachcode wie en oder pt-BR, daher gibt das E-Book Englisch (en) als Sprache an.",
+  "would unpack to more than is safe to read, so it was not opened. The file may be damaged.": "würde sich auf mehr entpacken, als sicher gelesen werden kann, und wurde daher nicht geöffnet. Die Datei ist möglicherweise beschädigt."
+}

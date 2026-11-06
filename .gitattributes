@@ -1,0 +1,29 @@
+* text=auto eol=lf
+
+# Pictures and icons
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.ico binary
+*.icns binary
+*.bmp binary
+
+# Fonts
+*.woff binary
+*.woff2 binary
+
+# Video and sound, such as the media fixtures in e2e/fixtures. Git guesses these are binary
+# today, but a guess about a file that happens to look like text would rewrite its line endings.
+*.mp4 binary
+*.mov binary
+*.webm binary
+*.ogv binary
+*.ogg binary
+*.mp3 binary
+*.wav binary
+
+# cmd.exe misreads labels and goto in a batch file with LF endings.
+*.cmd text eol=crlf

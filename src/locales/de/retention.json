@@ -1,0 +1,19 @@
+{
+  "After that, one version a week is kept.": "Danach wird eine Version pro Woche behalten.",
+  "Could not read the history settings: {reason}": "Die Verlaufseinstellungen konnten nicht gelesen werden: {reason}",
+  "Could not save the history settings: {reason}": "Die Verlaufseinstellungen konnten nicht gespeichert werden: {reason}",
+  "Days that keep every version": "Tage, an denen jede Version behalten wird",
+  "Days that keep one version a day": "Tage, an denen eine Version pro Tag behalten wird",
+  "Each page and scene keeps earlier versions you can go back to. To save space, old versions can be thinned out. Snapshots taken before an import, merge, split or restore, and checkpoints you make yourself, are always kept.": "Jede Seite und jede Szene behält frühere Versionen, zu denen du zurückkehren kannst. Um Platz zu sparen, können alte Versionen ausgedünnt werden. Schnappschüsse vor einem Import, Zusammenführen, Teilen oder Wiederherstellen und Prüfpunkte, die du selbst setzt, bleiben immer erhalten.",
+  "Enter a whole number from {min} to {max}.": "Gib eine ganze Zahl von {min} bis {max} ein.",
+  "Every version is kept for ever.": "Jede Version wird für immer behalten.",
+  "Every version younger than this is kept.": "Jede Version, die jünger ist, wird behalten.",
+  "For each page and scene, however old they are.": "Für jede Seite und Szene, egal wie alt sie sind.",
+  "History for this project": "Verlauf dieses Projekts",
+  "History settings saved.": "Verlaufseinstellungen gespeichert.",
+  "Newest versions always kept": "Neueste Versionen, die immer behalten werden",
+  "Open a project to change how long it keeps its history.": "Öffne ein Projekt, um zu ändern, wie lange es seinen Verlauf behält.",
+  "Save history settings": "Verlaufseinstellungen speichern",
+  "Thin out old history": "Alten Verlauf ausdünnen",
+  "This must be at least the days that keep every version.": "Das muss mindestens so viel sein wie die Tage, an denen jede Version behalten wird."
+}
