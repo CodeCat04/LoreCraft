@@ -34,7 +34,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 thiserror = "2"
 aho-corasick = "1"
 base64 = "0.22"
-sha2 = "0.10"
+sha2 = "0.11"
 regex = "1"
 semver = "1"
 os_info = { version = "3", default-features = false }
