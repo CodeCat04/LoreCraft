@@ -48,12 +48,14 @@ export function VersionsPanel(props: {
   onBack: () => void;
   /** `finished` means a suggestion is showing, so the selection is not handed back. */
   onClose: (finished: boolean) => void;
+  /** How many to write, in place of the number in the settings. */
+  count?: number;
 }) {
   useLocale();
   const { editor, source, targetId, request, onBack, onClose } = props;
   const profile = useMemo(() => profileForTask('rewrite', request.profileId), [request.profileId]);
   // Read once, so a change in settings does not reshape a run under way.
-  const [count] = useState(() => versionCount(useSettings.getState().settings.ai.rewriteVersions));
+  const [count] = useState(() => props.count ?? versionCount(useSettings.getState().settings.ai.rewriteVersions));
   const [states, setStates] = useState<VersionState[]>([]);
   const runRef = useRef<VersionRun | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -65,6 +67,7 @@ export function VersionsPanel(props: {
       targetId,
       setStates,
       count,
+      request.angles,
     );
     runRef.current = run;
     setStates(run.states);

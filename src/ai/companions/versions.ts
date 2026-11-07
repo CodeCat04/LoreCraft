@@ -37,8 +37,8 @@ const ANGLES = [
 ];
 
 /** The last thing a version's request says. Exact wording matters less than that they differ. */
-export function versionPrompt(index: number, earlier?: string, count: number = VERSION_COUNT): string {
-  const base = `This is version ${index + 1} of ${count}, and the author will compare them. ${ANGLES[index % ANGLES.length]} Reply with only the text of this version.`;
+export function versionPrompt(index: number, earlier?: string, count: number = VERSION_COUNT, angles: readonly string[] = ANGLES): string {
+  const base = `This is version ${index + 1} of ${count}, and the author will compare them. ${angles[index % angles.length]} Reply with only the text of this version.`;
   if (!earlier) return base;
   return `${base}\n\nThe author did not take this attempt, so write something different from it:\n<selection from="an earlier attempt">\n${fence(earlier)}\n</selection>`;
 }
@@ -71,6 +71,8 @@ export interface VersionsRequest {
   profileId?: string;
   /** A writing style for these versions, as for a single edit. */
   styleId?: string;
+  /** What makes each version differ, in place of the angles for a rewrite. */
+  angles?: readonly string[];
 }
 
 export function isBusy(status: VersionStatus): boolean {
@@ -95,6 +97,7 @@ export class VersionRun {
     private readonly targetId: string,
     private readonly onChange: (states: VersionState[]) => void,
     private readonly count: number = VERSION_COUNT,
+    private readonly angles: readonly string[] = ANGLES,
   ) {
     const range = trackedRange(edit.editor, targetId);
     const planned = range ? planEdit(edit.editor.state.doc, edit.action, range.from, range.to) : null;
@@ -183,7 +186,7 @@ export class VersionRun {
         show({ status: 'stopped' });
         return;
       }
-      const messages: AiMessage[] = [{ role: 'user', content: [...prompt.content, { type: 'text', text: versionPrompt(index, earlier, this.count) }] }];
+      const messages: AiMessage[] = [{ role: 'user', content: [...prompt.content, { type: 'text', text: versionPrompt(index, earlier, this.count, this.angles) }] }];
       handle = stream(
         { task: 'rewrite', profileId: this.profile.id, system: prompt.system, messages },
         {

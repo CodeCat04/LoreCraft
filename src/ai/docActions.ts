@@ -18,6 +18,8 @@ import { asOfSource, assembleContext, contextBudget, contextToBlocks, estimateTo
 import * as api from './api';
 import { isSourceLocalOnly, withheldMessage } from './limits/localOnly';
 import { FIELD_SYSTEM } from './prompts';
+import { guidedInstruction } from './drafting/guided';
+import { openGuidedContinue } from './drafting/store';
 import { reviewField, reviewInfobox } from './reviewDialogs';
 import type { ContentBlock } from './types';
 
@@ -78,13 +80,16 @@ function report(outcome: EditOutcome): void {
   }
 }
 
-/** Runs a prompt over the whole document, or at its end, as tracked changes. */
-async function editWholeDocument(kind: DocKind, promptId: string, label: string, action: 'replace' | 'insert'): Promise<void> {
+/**
+ * Runs a prompt over the whole document, or at its end, as tracked changes. `direction` is
+ * what the writer added in the Guided Continue box, if anything.
+ */
+async function editWholeDocument(kind: DocKind, promptId: string, label: string, action: 'replace' | 'insert', direction = ''): Promise<void> {
   const entry = currentDocument(kind);
   if (!entry) return;
   const { editor, source } = entry;
   try {
-    const instruction = await templateFor(promptId);
+    const instruction = guidedInstruction(await templateFor(promptId), direction);
     const { doc } = editor.state;
     // Adding goes at the end of the last text, so an empty last line is used, not left above.
     const end = Selection.atEnd(doc).to;
@@ -100,7 +105,16 @@ async function editWholeDocument(kind: DocKind, promptId: string, label: string,
 }
 
 export const fleshOutPage = () => editWholeDocument('page', 'builtin:flesh-out', t('Flesh out this page'), 'replace');
-export const continueScene = () => editWholeDocument('node', 'builtin:scene-continue', t('Continue writing'), 'insert');
+
+/** Opens the Guided Continue box. Run with nothing typed and one version, it is Continue as it always was. */
+export function continueScene(): void {
+  const entry = currentDocument('node');
+  if (!entry) return;
+  openGuidedContinue(entry.editor, entry.source, {
+    template: () => templateFor('builtin:scene-continue'),
+    runOne: (direction) => editWholeDocument('node', 'builtin:scene-continue', t('Continue writing'), 'insert', direction),
+  });
+}
 
 /** The context a field-filling request goes out with. */
 async function fieldMessages(editor: Editor, entry: EditorEntry, instruction: string, task: 'rewrite' | 'extract') {
