@@ -518,6 +518,8 @@ describe('AI with the real local model', () => {
     await waitUntil(async () => (await rpc(page, 'nodes.get', { id: scene.id })).synopsis.length > 0, 5000, 'the synopsis to be stored');
 
     await palette('Continue writing');
+    // With nothing typed and one version, the Guided Continue box runs Continue as before.
+    await page.getByRole('textbox', { name: 'What should happen next?' }).press('Enter');
     await waitForChanges(page);
     await page.locator('.ai-ins').first().waitFor();
     assert.equal(plainOf((await rpc(page, 'nodes.get', { id: scene.id })).content), opening, 'not stored yet');
@@ -1070,6 +1072,7 @@ describe('AI against the mock server', () => {
 
     // One that ends in tracked changes, stopped with its button.
     await palette('Continue writing');
+    await page.getByRole('textbox', { name: 'What should happen next?' }).press('Enter');
     await bar.getByText('Continue writing').waitFor();
     await app.screenshot('ai-action-running');
     await bar.getByRole('button', { name: 'Stop' }).click();
@@ -1120,6 +1123,7 @@ describe('AI against the mock server', () => {
     await page.keyboard.press('Control+k');
     await page.locator('.palette-input').fill('Continue writing');
     await page.keyboard.press('Enter');
+    await page.getByRole('textbox', { name: 'What should happen next?' }).press('Enter');
     await waitUntil(async () => (await sent('/v1/chat/completions')).length > before, 10000, 'the continue request');
     words = JSON.stringify((await sent('/v1/chat/completions')).at(-1).body);
     assert.match(words, /ARIA IS A RANGER/);

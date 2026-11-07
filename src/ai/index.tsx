@@ -44,6 +44,7 @@ import { useNav } from '../state/nav';
 import { profileForTask } from './client';
 import { confirmRun } from './limits/confirmRun';
 import { registerDraftingCommands } from './drafting';
+import { openSensesForSelection } from './drafting/store';
 
 /** Flesh out, after the cost estimate when the model is a cloud one. */
 async function fleshOutWithEstimate(): Promise<void> {
@@ -253,6 +254,20 @@ function registerAiCommands() {
     { id: 'ai.summary', title: t('Write a summary'), menu: 'AI', order: 42, when: hasOpenPage, run: summarizePage },
     { id: 'ai.continue', title: t('Continue writing'), menu: 'AI', order: 50, when: hasOpenScene, keywords: 'scene next', run: continueScene },
     { id: 'ai.synopsis', title: t("Describe this scene's synopsis"), menu: 'AI', order: 51, when: hasOpenScene, run: describeSynopsis },
+
+    // Drafting help: Describe with the senses, on the selection.
+    {
+      id: 'ai.describeSenses',
+      title: t('Describe with the senses'),
+      menu: 'AI',
+      order: 52,
+      when: () => !!activeEditor() && activeEditor()?.source.kind !== 'notes',
+      keywords: 'sight sound smell touch taste metaphor sensory detail',
+      run: () => {
+        const entry = activeEditor();
+        if (entry && !openSensesForSelection(entry.editor, entry.source)) toast(t('Select some text first.'));
+      },
+    },
 
     // Help that gives something to read rather than something to accept.
     {

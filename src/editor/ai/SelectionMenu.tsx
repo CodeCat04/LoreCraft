@@ -33,6 +33,8 @@ import type { EditorSource } from '../RichEditor';
 import { canEditRange, startEdit, type EditAction, type EditOutcome, type EditStatus, type RunningEdit } from './flow';
 import { hasText, planRewrite, planToMarkdown, planToPlainText } from './hunks';
 import { useRunningActions, type RunningAction } from './running';
+import { DraftingPanels } from '../../ai/drafting/DraftingPanels';
+import { openSenses, useDrafting } from '../../ai/drafting/store';
 import { acceptChanges, activeChange, dismissSuggestion, pendingSuggestions, rejectChanges, stepChange, trackRange, trackedRange, untrack, type Suggestion } from './suggestions';
 
 // ---------------------------------------------------------------------------
@@ -69,7 +71,7 @@ export function sendSelectionToPane(editor: Editor): boolean {
 // Positioning
 // ---------------------------------------------------------------------------
 
-function rangeAnchor(editor: Editor, range: () => { from: number; to: number } | null): VirtualElement {
+export function rangeAnchor(editor: Editor, range: () => { from: number; to: number } | null): VirtualElement {
   return {
     getBoundingClientRect() {
       const current = range();
@@ -90,7 +92,7 @@ function rangeAnchor(editor: Editor, range: () => { from: number; to: number } |
   };
 }
 
-function Floating(props: {
+export function Floating(props: {
   anchor: VirtualElement;
   label: string;
   className: string;
@@ -552,6 +554,7 @@ export function SelectionMenu({ editor, source }: { editor: Editor; source: Edit
   const running = allRunning.filter((action) => action.editor === editor);
   const askRef = useRef(ask);
   askRef.current = ask;
+  const drafting = useDrafting((s) => s.open?.editor === editor);
 
   const refresh = useCallback(() => {
     window.clearTimeout(timer.current);
@@ -695,7 +698,7 @@ export function SelectionMenu({ editor, source }: { editor: Editor; source: Edit
           {pending.length > 0 && <SuggestionBar editor={editor} source={source} pending={pending} onRetry={retry} />}
         </div>
       )}
-      {selected && selectionAnchor && !ask && (
+      {selected && selectionAnchor && !ask && !drafting && (
         <Floating anchor={selectionAnchor} label={t('AI actions for the selected text')} className="ai-menu">
           <button
             type="button"
@@ -752,6 +755,21 @@ export function SelectionMenu({ editor, source }: { editor: Editor; source: Edit
           >
             {t('Send to pane')}
           </button>
+          {/* Drafting help: Describe with the senses. */}
+          {source.kind !== 'notes' && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              title={t('Suggest details for sight, sound, smell, touch, taste and metaphor, from the lore')}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                openSenses(editor, source, selected.from, selected.to);
+                setSelected(null);
+              }}
+            >
+              {t('Describe with the senses')}
+            </button>
+          )}
           <LinkButton editor={editor} source={source} from={selected.from} to={selected.to} onDialog={() => setSelected(null)} />
           {commentState(editor) && (
             <button
@@ -802,6 +820,7 @@ export function SelectionMenu({ editor, source }: { editor: Editor; source: Edit
           />
         </Floating>
       )}
+      <DraftingPanels editor={editor} source={source} />
     </>
   );
 }

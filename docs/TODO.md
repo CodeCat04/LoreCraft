@@ -50,12 +50,12 @@ Ideas from comparing LoreCraft with other AI writing tools. Everything uses the 
 - [x] Older projects keep working; empty means "not set".
 
 ## 7. Guided Continue
-- [ ] **Continue** can take an instruction ("she finds the letter; end on a cliffhanger") or run with none.
-- [ ] Choose between 2 or 3 versions before anything is inserted, and insert the one you pick as a tracked change.
+- [x] **Continue** can take an instruction ("she finds the letter; end on a cliffhanger") or run with none.
+- [x] Choose between 2 or 3 versions before anything is inserted, and insert the one you pick as a tracked change.
 
 ## 8. Describe with the senses
-- [ ] Select a moment and choose **Describe**. You get short options under Sight, Sound, Smell, Touch, Taste and Metaphor.
-- [ ] Tick the ones you like and insert them, or ask for more. Insertions are tracked changes. It uses the lore: what a place smells like, what a character wears.
+- [x] Select a moment and choose **Describe**. You get short options under Sight, Sound, Smell, Touch, Taste and Metaphor.
+- [x] Tick the ones you like and insert them, or ask for more. Insertions are tracked changes. It uses the lore: what a place smells like, what a character wears.
 
 ## 9. Brainstorm board
 - [x] A Brainstorm view (AI menu and Ctrl+K) with categories: character names, place names, plot twists, what happens next, conflicts, world details, titles, objects, dialogue lines, character traits, and your own question.
