@@ -23,6 +23,7 @@ import {
   saveLayout,
   setRatio,
   stepBack,
+  stepBy,
   stepForward,
   toggleSplit,
   type Layout,
@@ -64,6 +65,27 @@ describe('history in a tab', () => {
     layout = replaceRoute(layout, 'main', page('b'));
     expect(focusedTab(layout).back).toHaveLength(1);
     expect(focusedTab(layout).route).toEqual(page('b'));
+  });
+
+  it('jumps several entries at once and keeps the ones passed', () => {
+    let layout = freshLayout();
+    for (const id of ['a', 'b', 'c', 'd']) layout = goTo(layout, 'main', page(id));
+    layout = stepBy(layout, 'main', -3);
+    expect(focusedTab(layout).route).toEqual(page('a'));
+    expect(focusedTab(layout).back).toEqual([{ view: 'home' }]);
+    expect(focusedTab(layout).forward).toEqual([page('b'), page('c'), page('d')]);
+    layout = stepBy(layout, 'main', 2);
+    expect(focusedTab(layout).route).toEqual(page('c'));
+    expect(focusedTab(layout).forward).toEqual([page('d')]);
+    expect(focusedTab(layout).back).toEqual([{ view: 'home' }, page('a'), page('b')]);
+  });
+
+  it('does not jump past the ends of the history', () => {
+    const layout = goTo(freshLayout(), 'main', page('a'));
+    expect(stepBy(layout, 'main', -2)).toBe(layout);
+    expect(stepBy(layout, 'main', 1)).toBe(layout);
+    expect(stepBy(layout, 'main', 0)).toBe(layout);
+    expect(stepBy(layout, 'side', -1)).toBe(layout);
   });
 
   it('ignores a pane that has gone', () => {

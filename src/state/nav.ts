@@ -20,6 +20,7 @@ import {
   replaceRoute,
   setRatio,
   stepBack,
+  stepBy,
   stepForward,
   toggleSplit,
   type Layout,
@@ -77,6 +78,8 @@ export interface NavStore extends Layout {
   replace: (route: Route) => void;
   goBack: () => void;
   goForward: () => void;
+  /** Moves through the history by several entries: -2 is two back, 3 is three forward. */
+  jump: (offset: number) => void;
 
   openTab: (route: Route) => void;
   /** Closes a tab, or the focused pane's current one. */
@@ -112,6 +115,7 @@ const store = create<NavStore>((set) => {
     replace: (route) => apply((s) => replaceRoute(s, s.focusedPaneId, route)),
     goBack: () => apply((s) => stepBack(s, s.focusedPaneId)),
     goForward: () => apply((s) => stepForward(s, s.focusedPaneId)),
+    jump: (offset) => apply((s) => stepBy(s, s.focusedPaneId, offset)),
     openTab: (route) => apply((s) => openTab(s, s.focusedPaneId, route)),
     closeTab: (tabId) => apply((s) => closeTab(s, tabId ?? focusedTab(s).id)),
     closeOtherTabs: (tabId) => apply((s) => closeOtherTabs(s, tabId)),
@@ -133,7 +137,7 @@ const store = create<NavStore>((set) => {
 /** The pane a component is showing in. Null for the sidebar, dialogs and the like. */
 export const PaneContext = createContext<PaneId | null>(null);
 
-type PaneActions = Pick<NavStore, 'go' | 'replace' | 'goBack' | 'goForward'>;
+type PaneActions = Pick<NavStore, 'go' | 'replace' | 'goBack' | 'goForward' | 'jump'>;
 
 function actionsFor(paneId: PaneId): PaneActions {
   const apply = (change: (s: NavStore) => Layout) =>
@@ -146,6 +150,7 @@ function actionsFor(paneId: PaneId): PaneActions {
     replace: (route) => apply((s) => replaceRoute(s, paneId, route)),
     goBack: () => apply((s) => stepBack(s, paneId)),
     goForward: () => apply((s) => stepForward(s, paneId)),
+    jump: (offset) => apply((s) => stepBy(s, paneId, offset)),
   };
 }
 

@@ -9,6 +9,7 @@ import { Fragment, memo, useEffect, useRef, type KeyboardEvent as ReactKeyboardE
 import { openContextMenu } from './ContextMenu';
 import { ErrorBoundary } from './ErrorBoundary';
 import { RouteView } from './routes';
+import { lastNodeTitle, routeTitle } from './routeTitles';
 import { rememberTabScroll, tabScrollOf } from '../state/docs';
 import { PaneContext, useNav, type Route } from '../state/nav';
 import { useTitles } from '../state/project';
@@ -23,41 +24,6 @@ import { useCanvasList } from '../canvas/api';
 
 import '../styles/tabs.css';
 
-/** Read when shown, so they follow the interface language. */
-const WRITE_MODE_TITLES: Record<string, () => string> = {
-  read: () => t('Chapter'),
-  cork: () => t('Corkboard'),
-  outline: () => t('Outline'),
-  threads: () => t('Plot threads'),
-  presence: () => t('Character presence'),
-  trash: () => t('Manuscript trash'),
-};
-
-const PLAIN_TITLES: Record<string, () => string> = {
-  home: () => t('Main page'),
-  allPages: () => t('All pages'),
-  categories: () => t('Categories'),
-  recent: () => t('Recent changes'),
-  wanted: () => t('Wanted pages'),
-  orphans: () => t('Orphaned pages'),
-  stubs: () => t('Short pages'),
-  trash: () => t('Trash'),
-  replace: () => t('Find and replace'),
-  stats: () => t('Writing stats'),
-  consistency: () => t('Consistency'),
-  timeline: () => t('Timeline'),
-  graph: () => t('Relationships'),
-  maps: () => t('Maps'),
-  export: () => t('Export'),
-  import: () => t('Import'),
-  settings: () => t('Settings'),
-  write: () => t('Write'),
-  proposals: () => t('Outside suggestions'),
-};
-
-/** The Write area knows one book at a time, and a tab can be on another one by now. */
-const lastNodeTitles = new Map<string, string>();
-
 function useTabTitle(route: Route): string {
   useLocale();
   const canvasList = useCanvasList();
@@ -68,31 +34,7 @@ function useTabTitle(route: Route): string {
     const node = nodeId ? s.index.byId.get(nodeId) : undefined;
     return node ? displayTitle(node) : undefined;
   });
-  if (nodeId && currentNodeTitle) lastNodeTitles.set(nodeId, currentNodeTitle);
-  const nodeTitle = currentNodeTitle ?? (nodeId ? lastNodeTitles.get(nodeId) : undefined);
-  switch (route.view) {
-    case 'page':
-      return pageTitle ?? t('Page');
-    case 'missing':
-      return route.title;
-    case 'canvas':
-      return canvasTitle ?? t('Canvas');
-    case 'search':
-      return t('Search: {query}', { query: route.q });
-    case 'allPages':
-      return route.category ?? PLAIN_TITLES.allPages();
-    case 'write':
-      if (route.mode && route.mode !== 'scene' && !nodeTitle) return WRITE_MODE_TITLES[route.mode]?.() ?? t('Write');
-      return nodeTitle ?? t('Write');
-    default:
-      return PLAIN_TITLES[route.view]?.() ?? sentenceCase(route.view);
-  }
-}
-
-/** For a screen with no title of its own here yet. `someView` comes out as "Some view". */
-function sentenceCase(name: string): string {
-  const words = name.replace(/([A-Z])/g, ' $1').toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
+  return routeTitle(route, { page: pageTitle, canvas: canvasTitle, node: lastNodeTitle(nodeId, currentNodeTitle) });
 }
 
 const DRAG_THRESHOLD_PX = 6;

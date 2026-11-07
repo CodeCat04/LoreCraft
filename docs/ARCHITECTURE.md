@@ -656,6 +656,10 @@ its tab goes to the back, as it does when a route changes.
   The second in line shows a read-only copy that follows what is saved, and it reloads before it
   gets its turn to edit. Read-only copies are not offered to the AI.
 - A document's cursor and scroll position are kept in `src/state/docs.ts` under the same keys.
+- Back and Forward act on the focused pane's front tab: View › Back and Forward (Alt+← and Alt+→),
+  the arrows in the top bar (`src/shell/NavButtons.tsx`, whose right-click menu jumps with `jump`) and
+  the mouse's side buttons. A link, search result, palette entry or sidebar link uses `go`, so it adds
+  history. `replace` is for a screen that corrects its own route, such as a red link becoming its page.
 
 `src/shell/workspace.ts` saves the layout and places in the app settings, per project id and never
 in the project file, because that would mark it dirty. `Settings.save.reopenLast` turns this off.

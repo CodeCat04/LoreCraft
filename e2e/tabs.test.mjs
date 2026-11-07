@@ -178,6 +178,113 @@ describe('tabs', () => {
     assert.deepEqual(problems, []);
   });
 
+  it('goes back and forward with the buttons, the mouse side buttons and the keyboard', async () => {
+    const page = await start();
+    await rpc(page, 'pages.create', { title: 'Alder', status: 'canon', content: linkDoc('the birch wood', 'Birch') });
+    await rpc(page, 'pages.create', { title: 'Birch', status: 'canon', content: linkDoc('the cedar hall', 'Cedar') });
+    const back = page.getByRole('button', { name: 'Back', exact: true });
+    const forward = page.getByRole('button', { name: 'Forward', exact: true });
+    const startUrl = page.url();
+    assert.match(await back.getAttribute('title'), /Alt\+←/);
+    assert.match(await forward.getAttribute('title'), /Alt\+→/);
+    assert.ok(await back.isDisabled(), 'nowhere to go back to yet');
+    assert.ok(await forward.isDisabled(), 'nowhere to go forward to yet');
+
+    // Page A, then page B by its link.
+    await openPage(page, 'Alder');
+    await page.locator('.ProseMirror a[data-wiki-target="Birch"]').click();
+    await waitForTabs(page, ['Birch']);
+    assert.ok(await forward.isDisabled());
+
+    // The buttons.
+    await back.click();
+    await waitForTabs(page, ['Alder']);
+    assert.ok(await forward.isEnabled());
+    await forward.click();
+    await waitForTabs(page, ['Birch']);
+    assert.ok(await forward.isDisabled());
+
+    // The mouse's side buttons, which must not move the web view itself.
+    const sideButton = (button) =>
+      page.locator('[data-pane-id="main"] .content').evaluate((el, button) => {
+        const prevented = ['mousedown', 'mouseup', 'auxclick'].map((type) => {
+          const event = new MouseEvent(type, { button, buttons: 0, bubbles: true, cancelable: true, view: window });
+          el.dispatchEvent(event);
+          return event.defaultPrevented;
+        });
+        return prevented.every(Boolean);
+      }, button);
+    assert.ok(await sideButton(3), 'the web view does not go back on its own');
+    await waitForTabs(page, ['Alder']);
+    assert.ok(await sideButton(4));
+    await waitForTabs(page, ['Birch']);
+    assert.equal(page.url(), startUrl);
+
+    // The keyboard.
+    await page.keyboard.press('Alt+ArrowLeft');
+    await waitForTabs(page, ['Alder']);
+    await page.keyboard.press('Alt+ArrowRight');
+    await waitForTabs(page, ['Birch']);
+
+    // Right-click lists recent pages by title, nearest first, to jump to one.
+    await back.click({ button: 'right' });
+    const menu = page.getByRole('menu', { name: 'Go back to' });
+    await menu.waitFor();
+    assert.deepEqual(await menu.getByRole('menuitem').allInnerTexts(), ['Alder', 'Main page']);
+    await app.screenshot('nav-history-menu');
+    await menu.getByRole('menuitem', { name: 'Main page' }).click();
+    await waitForTabs(page, ['Main page']);
+    assert.ok(await back.isDisabled());
+    await forward.click({ button: 'right' });
+    const ahead = page.getByRole('menu', { name: 'Go forward to' });
+    assert.deepEqual(await ahead.getByRole('menuitem').allInnerTexts(), ['Alder', 'Birch']);
+    await ahead.getByRole('menuitem', { name: 'Birch' }).click();
+    await waitForTabs(page, ['Birch']);
+    assert.ok(await forward.isDisabled());
+
+    // A red link makes its page, and Back still leads to where it was followed from.
+    await page.locator('.ProseMirror a[data-wiki-target="Cedar"]').click();
+    await waitForTabs(page, ['Cedar']);
+    await back.click();
+    await waitForTabs(page, ['Birch']);
+    await forward.click();
+    await waitForTabs(page, ['Cedar']);
+
+    // The palette, the sidebar and search results all leave history behind them.
+    await page.keyboard.press('Control+k');
+    const input = page.getByPlaceholder('Search pages and commands…');
+    await waitUntil(() => input.evaluate((el) => el === document.activeElement), 2000, 'the palette to open');
+    await input.fill('Alder');
+    await page.getByRole('option', { name: 'Alder' }).first().waitFor();
+    await page.keyboard.press('Enter');
+    await waitForTabs(page, ['Alder']);
+    await page.getByRole('navigation', { name: 'Wiki' }).getByRole('button', { name: 'Recent changes' }).click();
+    await waitForTabs(page, ['Recent changes']);
+    await page.locator('.top-search-input').fill('wood');
+    await page.locator('.top-search-input').press('Enter');
+    await waitForTabs(page, ['Search: wood']);
+    await page.locator('[data-pane-id="main"] .content a[data-wiki-target="Alder"]').first().click();
+    await waitForTabs(page, ['Alder']);
+    for (const name of ['Search: wood', 'Recent changes', 'Alder', 'Cedar']) {
+      await back.click();
+      await waitForTabs(page, [name]);
+    }
+
+    // With two panes, the buttons follow the focused one.
+    await page.keyboard.press('Control+\\');
+    // Beside a wiki page, the new pane opens on the book.
+    await tab(page, 'Write', 'side').waitFor();
+    await waitUntil(() => back.isDisabled(), 2000, 'Back to follow the new pane');
+    await pane(page, 'main').locator('.content').click({ position: { x: 4, y: 4 } });
+    await waitUntil(() => back.isEnabled(), 2000, 'Back to follow the first pane');
+    await back.click();
+    await waitForTabs(page, ['Birch']);
+    const sideTabs = await tabNames(page, 'side');
+    assert.equal(sideTabs.length, 1);
+    assert.ok(!['Birch', 'Cedar'].includes(sideTabs[0]), `the second pane stays on the book, not ${sideTabs[0]}`);
+    assert.deepEqual(problems, []);
+  });
+
   it('writes a scene with a wiki page open beside it', async () => {
     const page = await start();
     const elara = await rpc(page, 'pages.create', { title: 'Elara', pageType: 'character', status: 'canon', summary: 'A wandering scribe.', content: paragraphs('She keeps the old maps.') });

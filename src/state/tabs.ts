@@ -136,6 +136,21 @@ export function stepForward(layout: Layout, paneId: PaneId): Layout {
   });
 }
 
+/**
+ * Jumps several entries at once: -2 is two steps back, 3 is three forward. Every screen passed
+ * on the way stays in the history, in order, as if each step had been taken by hand.
+ */
+export function stepBy(layout: Layout, paneId: PaneId, offset: number): Layout {
+  const pane = paneById(layout, paneId);
+  if (!pane || !Number.isInteger(offset) || offset === 0) return layout;
+  const tab = activeTab(pane);
+  const room = offset < 0 ? tab.back.length : tab.forward.length;
+  if (Math.abs(offset) > room) return layout;
+  let next = layout;
+  for (let i = 0; i < Math.abs(offset); i += 1) next = offset < 0 ? stepBack(next, paneId) : stepForward(next, paneId);
+  return next;
+}
+
 // ---- Tabs ----------------------------------------------------------------------------------
 
 /** Opens a tab just after the current one. A tab already showing this route is reused. */
