@@ -30,6 +30,25 @@
 
 .mcp-badge { white-space: nowrap; color: var(--ins-text); border-color: var(--ins-text); background: var(--ins-bg); }
 .mcp-badge:hover:not(:disabled) { background: var(--ins-bg); filter: brightness(1.15); }
+.mcp-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.mcp-badge.is-pinned { display: inline-flex; align-items: center; gap: 0.375rem; }
+.mcp-badge.is-empty { color: var(--text-muted); border-color: var(--border); background: transparent; }
+.mcp-badge-count {
+  min-width: 1.25rem;
+  padding: 0 0.3125rem;
+  border-radius: 0.625rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--surface);
+  background: var(--ins-text);
+}
+.mcp-badge.is-empty .mcp-badge-count { color: var(--text-muted); background: var(--bg-sunken); }
+
+.mcp-proposals-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+.mcp-proposals-head .view-title { margin-right: auto; }
+/* The suggestion that is ready next, after one was accepted or rejected. */
+.mcp-proposal:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.mcp-proposals-head .view-title:focus:not(:focus-visible) { outline: none; }
 
 .mcp-proposal {
   display: grid;

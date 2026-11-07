@@ -221,6 +221,11 @@ export interface Settings {
     /** Ids of favorite styles. */
     favorites: string[];
   };
+  /** AI tools outside LoreCraft. Their server settings are kept apart, in `mcp-settings.json`. */
+  mcp: {
+    /** The Outside suggestions list is pinned: its count stays in the top bar, and opens it beside. */
+    pinned: boolean;
+  };
 }
 
 export const LOCAL_PROFILE_ID = 'local';
@@ -272,6 +277,7 @@ export const DEFAULT_SETTINGS: Settings = {
   updates: { checkAtStartup: false },
   recent: [],
   writingStyles: { custom: [], favorites: [] },
+  mcp: { pinned: false },
 };
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {

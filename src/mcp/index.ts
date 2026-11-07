@@ -4,6 +4,8 @@ import { subscribeLocale, t } from '../lib/i18n';
 import { registerCommands } from '../shell/commands';
 import { useNav } from '../state/nav';
 import { useProject } from '../state/project';
+import { useSettings } from '../state/settings';
+import { showPinnedList } from './ProposalsView';
 
 export { McpSettings } from './McpSettings';
 export { ProposalsBadge, ProposalsView } from './ProposalsView';
@@ -18,7 +20,8 @@ function registerMcpCommands() {
       order: 80,
       keywords: 'mcp proposals claude code opencode review',
       when: () => useProject.getState().status.open,
-      run: () => useNav.getState().go({ view: 'proposals' }),
+      // Pinned, the list opens beside the writing, as from the badge.
+      run: () => (useSettings.getState().settings.mcp.pinned ? showPinnedList() : useNav.getState().go({ view: 'proposals' })),
     },
     {
       id: 'mcp.settings',
