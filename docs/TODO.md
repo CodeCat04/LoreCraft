@@ -72,7 +72,7 @@ Ideas from comparing LoreCraft with other AI writing tools. Everything uses the 
 - [x] Export one or all custom prompts from the prompt library to a file, and import prompts from a file (with a preview, and no duplicates).
 
 ## 12. Outside AI can write in the book
-A writer reported: "The MCP connection doesn't allow you to assist in editing the write section of the book I am writing. We have had to keep using .txt documents to copy back and forth." Chapters run 4–10k words, one scene each. Every new kind still waits in Outside suggestions; nothing changes silently.
+Outside AI tools could read the book but not really write in it, so text had to be copied back and forth by hand. Long chapters of one scene each must work too. Every new kind still waits in Outside suggestions; nothing changes silently.
 - [x] `propose_insert`: new Markdown text at the `start` or `end` of a scene, or `after_quote` / `before_quote`. Works on an empty scene.
 - [x] `propose_rewrite` (also reachable through `propose_edit`): a range from `from_quote` to `to_quote`, both included, or `whole: true` for the entire scene.
 - [x] `propose_new_scene` and `propose_new_chapter`: placed after a named scene or chapter, or at the end; with synopsis, point of view, location and cast by page title, and the text. A new chapter carries its first scene.
