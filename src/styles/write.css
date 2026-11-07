@@ -719,3 +719,8 @@ html.write-drag-refused, html.write-drag-refused * { cursor: not-allowed !import
 
 .stats-table summary { cursor: pointer; color: var(--link); font-size: 0.8125rem; margin-bottom: 0.5rem; }
 .stats-table .data-table { max-width: 28rem; font-size: 0.8125rem; }
+
+/* Book settings: point of view and tense, side by side. */
+.book-voice { display: flex; flex-wrap: wrap; gap: 0 1rem; align-items: flex-end; }
+.book-voice .field { flex: 1 1 12rem; }
+.book-voice-hint { flex-basis: 100%; }

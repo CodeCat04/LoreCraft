@@ -23,7 +23,8 @@ import { useTitles } from '../state/project';
 import { resolveStyleInstructions } from '../writingStyles/store';
 import type { AiProfile } from '../lib/settings';
 import type { Backlinks, Book, Node, NodeMeta, Page, PageStatus, PmNode, SearchHit, TitleEntry } from '../lib/types';
-import { attr, fence } from './prompts';
+import { loadBookVoice, type BookVoice } from '../write/bookVoice';
+import { attr, fence, narrationInstruction } from './prompts';
 import { getStorySoFar, type StoryParams, type StorySoFar } from './summaries/api';
 import { storyForContext } from './summaries/contextBlock';
 import type { TextBlock } from './types';
@@ -164,6 +165,8 @@ export interface LoreSource {
   firstAppearances?(): Promise<Record<string, string>>;
   /** The project's eras and calendar. Without them, only plain dates can be ordered. */
   dates?(): Promise<DateContext>;
+  /** A book's point of view and tense. Without it, none is set. */
+  bookVoice?(bookId: string): Promise<BookVoice>;
 }
 
 export function defaultLore(): LoreSource {
@@ -180,7 +183,25 @@ export function defaultLore(): LoreSource {
     listPages: (filter) => coreApi.pages.list(filter),
     firstAppearances: () => coreApi.pages.firstAppearances(),
     dates: () => getDateContext(),
+    bookVoice: (bookId) => loadBookVoice(bookId),
   };
+}
+
+/**
+ * The point of view and tense a scene is written in: its book's setting, with the scene's
+ * own point-of-view character. Empty for anything that is not a scene, or with nothing set.
+ * Every request that writes prose for the book gets this, through the style block.
+ */
+export async function narrationFor(
+  source: { kind: string; id: string } | null | undefined,
+  lore: LoreSource = defaultLore(),
+): Promise<string> {
+  if (!source || source.kind !== 'node' || !lore.bookVoice) return '';
+  const node = await lore.node(source.id);
+  if (!node) return '';
+  const voice = await lore.bookVoice(node.bookId);
+  const pov = node.povPageId ? lore.titles().find((entry) => entry.id === node.povPageId)?.title : undefined;
+  return narrationInstruction(voice, pov);
 }
 
 export async function loadReadingOrder(lore: LoreSource): Promise<ReadingOrder> {
@@ -593,14 +614,20 @@ export async function assembleContext(request: ContextRequest, lore: LoreSource 
     nodeId: request.source?.kind === 'node' ? request.source.id : undefined,
     styleId: request.styleId,
   }).catch(() => null);
+  // The book's point of view and tense travel with the style, as the author's own rules.
+  const narration = await narrationFor(request.source, lore).catch(() => '');
+  const styleText = [style?.text, narration].filter(Boolean).join('\n\n');
   let styleBlock = '';
-  if (style?.text) {
-    const text = `<writing_style>\n${style.text.replace(/<(\/?)writing_style\b/gi, '< $1writing_style')}\n</writing_style>`;
+  if (styleText) {
+    const text = `<writing_style>\n${styleText.replace(/<(\/?)writing_style\b/gi, '< $1writing_style')}\n</writing_style>`;
     const hash = hashText(text);
     const already = alreadySent.get('style') === hash;
     if (!already) styleBlock = text;
+    const title = style?.styleName
+      ? t('Writing style: {name}', { name: style.styleName })
+      : style?.text ? t('Style guide') : t('Point of view and tense');
     items.push({
-      id: 'style', kind: 'style', title: style.styleName ? t('Writing style: {name}', { name: style.styleName }) : t('Style guide'), reason: 'style',
+      id: 'style', kind: 'style', title, reason: 'style',
       state: already ? 'already' : 'included', text: already ? '' : text, tokens: already ? 0 : estimateTokens(text), shortened: false, hash,
     });
   }

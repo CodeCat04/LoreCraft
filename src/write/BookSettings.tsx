@@ -12,6 +12,7 @@ import { useLocale } from '../state/language';
 import { useNav } from '../state/nav';
 import { toast } from '../shell/toasts';
 import { BookStyleField } from '../writingStyles/BookStyleField';
+import { BookVoiceField } from './BookVoiceField';
 
 function BookForm({ book, close }: { book: Book; close: (changed: boolean) => void }) {
   useLocale();
@@ -68,6 +69,7 @@ function BookForm({ book, close }: { book: Book; close: (changed: boolean) => vo
         />
       </label>
       <BookStyleField bookId={book.id} />
+      <BookVoiceField bookId={book.id} />
       <div className="dialog-actions book-settings-actions">
         <button
           type="button"

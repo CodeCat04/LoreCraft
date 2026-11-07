@@ -500,6 +500,22 @@ Its output has no dates or counters, because it sits in a cached prefix.
 - Project meta `styleGuide.text` is the project-level text as plain text, for the MCP server,
   which cannot call TypeScript. It is written only after a change the writer made, and only if
   it differs, so opening a project never marks it as changed.
+- Project meta `books.voice` maps a book id to its point of view and tense (`src/write/bookVoice.ts`).
+  Both are optional; a missing key or unknown value means "not set", so older projects need no
+  migration. `narrationFor(source)` in `src/ai/context.ts` turns the scene's book setting and its
+  own point-of-view character into lines (`narrationInstruction` in `prompts.ts`), and
+  `assembleContext` adds them to the `<writing_style>` block. Every prose request for a scene
+  (Continue, rewrites, style rewrites, drafting, chat) gets them that way.
+
+## Drafting a scene
+
+`src/ai/drafting/` writes a scene from selected notes ("Write as a scene", Ctrl+Shift+E), from
+its synopsis (`draftSceneFromSynopsis(nodeId, { length })`, callable from anywhere) or from a
+premise (`firstDraft(nodeId, premise, length)`). The prompts are in `drafting/prompts.ts`, short
+for small local models, with the scene's point of view, cast, location and neighbouring
+synopses; the cast and location pages are pinned as lore. A long draft for a local profile is
+written in parts, each given the end of the draft so far, and all parts arrive as one tracked
+change through `finishEdit`. Stop cancels the running part and nothing is suggested.
 
 ## Search by meaning
 

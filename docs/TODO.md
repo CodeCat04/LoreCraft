@@ -38,16 +38,16 @@ A style can already be set for a project or book (`choices.project.styleId`, src
 Ideas from comparing LoreCraft with other AI writing tools. Everything uses the same AI as the rest of the app (local or cloud). It respects "local only" and the spending limit, and nothing changes the writer's text without review.
 
 ## 5. Write a scene from notes, a synopsis or a premise
-- [ ] Select rough notes (stream of consciousness, beats or bullet points) and choose **Write this as a scene**. The AI turns them into finished prose using the scene's point of view, cast, location, the lore it mentions and the default style. The result arrives as a tracked change for the selection.
-- [ ] **Draft from synopsis** in a scene's AI menu, for a scene that has a synopsis but little or no text. It writes the scene from the synopsis, cast, location and the scenes around it.
-- [ ] **First draft** in an empty scene: type a premise or a few lines of what should happen, and get a draft of a chosen length.
-- [ ] It works with small local models: short prompts, a length choice, and long scenes written in parts if needed.
+- [x] Select rough notes (stream of consciousness, beats or bullet points) and choose **Write this as a scene**. The AI turns them into finished prose using the scene's point of view, cast, location, the lore it mentions and the default style. The result arrives as a tracked change for the selection.
+- [x] **Draft from synopsis** in a scene's AI menu, for a scene that has a synopsis but little or no text. It writes the scene from the synopsis, cast, location and the scenes around it.
+- [x] **First draft** in an empty scene: type a premise or a few lines of what should happen, and get a draft of a chosen length.
+- [x] It works with small local models: short prompts, a length choice, and long scenes written in parts if needed.
 - Code: src/editor/ai/, src/ai/context.ts, src/ai/prompts.ts, src/write/.
 
 ## 6. Point of view and tense for the book
-- [ ] Book settings gets **Point of view** (first, close third, omniscient, second, and so on) and **Tense** (past or present), beside the default style.
-- [ ] Every AI request that writes prose for that book follows them. A scene's own point-of-view character still applies.
-- [ ] Older projects keep working; empty means "not set".
+- [x] Book settings gets **Point of view** (first, close third, omniscient, second, and so on) and **Tense** (past or present), beside the default style.
+- [x] Every AI request that writes prose for that book follows them. A scene's own point-of-view character still applies.
+- [x] Older projects keep working; empty means "not set".
 
 ## 7. Guided Continue
 - [ ] **Continue** can take an instruction ("she finds the letter; end on a cliffhanger") or run with none.

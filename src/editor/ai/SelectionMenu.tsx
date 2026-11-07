@@ -26,6 +26,7 @@ import { toast } from '../../shell/toasts';
 import { getCommand } from '../../shell/commands';
 import { RewriteInStylePicker, rewriteInstruction, useRewriteDefault } from '../../writingStyles/rewrite';
 import { recordRecentStyle } from '../../writingStyles/store';
+import { WriteAsSceneItems } from '../../ai/drafting/MenuItems';
 import { LinkButton } from '../makePage/LinkButton';
 import { commentState, startComment } from '../comments/extension';
 import type { EditorSource } from '../RichEditor';
@@ -740,6 +741,8 @@ export function SelectionMenu({ editor, source }: { editor: Editor; source: Edit
               {t('Rewrite in my style')}
             </button>
           )}
+          {/* Drafting: selected notes into a finished scene. */}
+          <WriteAsSceneItems editor={editor} source={source} range={selected} canEdit={selected.canEdit} onStart={() => setSelected(null)} />
           <button
             type="button"
             className="btn btn-sm"
