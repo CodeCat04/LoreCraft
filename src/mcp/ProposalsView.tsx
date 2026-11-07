@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { t } from '../lib/i18n';
 import { errorMessage } from '../lib/rpc';
@@ -8,11 +8,13 @@ import { toast } from '../shell/toasts';
 import { confirm } from '../shell/dialogs';
 import { useDataVersion } from '../state/events';
 import { useLocale } from '../state/language';
-import { useNav } from '../state/nav';
+import { isFocusedPane, useNav, usePaneId, type Route } from '../state/nav';
 import { useProject } from '../state/project';
+import { useSettings } from '../state/settings';
 import { compareTexts, type DiffLine } from '../wiki/diff';
 import { acceptProposal, rejectProposal } from './actions';
 import { mcp, type Proposal } from './api';
+import { listInSight, nextReady, showListIn, useListFocus } from './pin';
 
 /** A translated sentence with an element, such as a link, where `{name}` is. */
 function withElement(template: string, name: string, element: ReactNode): ReactNode {
@@ -50,20 +52,72 @@ export function useProposalCount(): number {
   return count;
 }
 
-/** Sits in the top bar, and only there while something is waiting. */
+/** The pinned list: brought to the front where it is open, or opened in the pane beside. */
+export function showPinnedList() {
+  const nav = useNav.getState();
+  const where = showListIn(nav);
+  if (where.kind === 'activate') {
+    nav.activateTab(where.tabId);
+    nav.focusPane(where.paneId);
+  } else {
+    nav.openBeside({ view: 'proposals' });
+  }
+  useListFocus.getState().ask();
+}
+
+export function setProposalsPinned(pinned: boolean) {
+  return useSettings.getState().update({ mcp: { pinned } });
+}
+
+function countLabel(count: number): string {
+  if (count === 0) return t('No outside suggestions waiting');
+  return count === 1 ? t('1 outside suggestion') : t('{count} outside suggestions', { count });
+}
+
+/**
+ * Sits in the top bar while something is waiting. Pinned, it stays there with the count,
+ * even at none, and opens the list beside the writing.
+ */
 export function ProposalsBadge() {
   useLocale();
   const count = useProposalCount();
+  const open = useProject((s) => s.status.open);
+  const pinned = useSettings((s) => s.settings.mcp.pinned);
   const go = useNav((s) => s.go);
   const [seen, setSeen] = useState(0);
+  // Pinned, the count in sight says enough, so a new one is only read out, not shown again.
+  const [announced, setAnnounced] = useState('');
   useEffect(() => {
-    if (count > seen && useNav.getState().route.view !== 'proposals') {
-      toast(t('An outside AI tool left a suggestion for you to review.'));
+    if (count > seen) {
+      if (pinned) setAnnounced(countLabel(count));
+      else if (!listInSight(useNav.getState())) toast(t('An outside AI tool left a suggestion for you to review.'));
     }
     setSeen(count);
-  }, [count, seen]);
+  }, [count, seen, pinned]);
+  const label = countLabel(count);
+  if (pinned && open) {
+    return (
+      <>
+        <span className="mcp-live" role="status">
+          {announced}
+        </span>
+        <button
+          type="button"
+          className={`btn mcp-badge is-pinned${count === 0 ? ' is-empty' : ''}`}
+          title={t('Review suggestions from AI tools outside LoreCraft')}
+          aria-label={label}
+          data-testid="mcp-pinned-badge"
+          onClick={showPinnedList}
+        >
+          <span aria-hidden="true">{t('Suggestions')}</span>
+          <span className="mcp-badge-count" aria-hidden="true">
+            {count}
+          </span>
+        </button>
+      </>
+    );
+  }
   if (count === 0) return null;
-  const label = count === 1 ? t('1 outside suggestion') : t('{count} outside suggestions', { count });
   return (
     <button type="button" className="btn mcp-badge" title={t('Review suggestions from AI tools outside LoreCraft')} onClick={() => go({ view: 'proposals' })}>
       {label}
@@ -98,10 +152,14 @@ function when(iso: string): string {
 function EditDetails({ proposal }: { proposal: Extract<Proposal, { kind: 'edit' }> }) {
   useLocale();
   const go = useNav((s) => s.go);
+  const split = useNav((s) => s.panes.length > 1);
+  const pinned = useSettings((s) => s.settings.mcp.pinned);
   const lines = useMemo(() => compareTexts(proposal.payload.quote, proposal.payload.replacement), [proposal]);
   const open = () => {
-    if (proposal.targetKind === 'page') go({ view: 'page', id: proposal.targetId });
-    else go({ view: 'write', nodeId: proposal.targetId });
+    const route: Route = proposal.targetKind === 'page' ? { view: 'page', id: proposal.targetId } : { view: 'write', nodeId: proposal.targetId };
+    // Pinned or split, the list stays where it is and the page opens beside it.
+    if (pinned || split) useNav.getState().openBeside(route, { keepFocus: true });
+    else go(route);
   };
   const sentence = proposal.targetKind === 'page' ? t('Change to the page {title}') : t('Change to the scene {title}');
   return (
@@ -152,7 +210,7 @@ function NewPageDetails({ proposal }: { proposal: Extract<Proposal, { kind: 'new
   );
 }
 
-function ProposalCard({ proposal }: { proposal: Proposal }) {
+function ProposalCard({ proposal, onHandled }: { proposal: Proposal; onHandled: (id: string) => void }) {
   useLocale();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -163,6 +221,7 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
     try {
       const result = await acceptProposal(proposal);
       if (result.ok) {
+        onHandled(proposal.id);
         toast(proposal.kind === 'edit' ? t('Suggestion applied. The old version is in History.') : t('Page created as a draft.'), 'success');
       } else setProblem(result.reason);
     } catch (error) {
@@ -175,6 +234,7 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
     setBusy(true);
     try {
       await rejectProposal(proposal);
+      onHandled(proposal.id);
     } catch (error) {
       setProblem(errorMessage(error));
     } finally {
@@ -183,7 +243,12 @@ function ProposalCard({ proposal }: { proposal: Proposal }) {
   };
 
   return (
-    <article className="mcp-proposal" data-proposal={proposal.id}>
+    <article
+      className="mcp-proposal"
+      data-proposal={proposal.id}
+      tabIndex={-1}
+      aria-label={proposal.title ? t('Suggestion: {name}', { name: proposal.title }) : t('Suggestion')}
+    >
       <header className="mcp-proposal-from muted small">
         {t('From {client}, {time}', { client: proposal.client, time: when(proposal.createdAt) })}
       </header>
@@ -287,12 +352,46 @@ function BulkActions({ proposals }: { proposals: Proposal[] }) {
   );
 }
 
+/** The pin, which keeps the count in the top bar and opens the list beside the writing. */
+function PinButton() {
+  useLocale();
+  const pinned = useSettings((s) => s.settings.mcp.pinned);
+  return (
+    <button
+      type="button"
+      className={`btn btn-sm mcp-pin${pinned ? ' btn-primary' : ''}`}
+      aria-pressed={pinned}
+      title={
+        pinned
+          ? t('The count stays in the top bar. Click it to open this list beside your writing.')
+          : t('Keep the count in the top bar, and open this list beside your writing.')
+      }
+      onClick={() => void setProposalsPinned(!pinned)}
+    >
+      {t('Pin to top bar')}
+    </button>
+  );
+}
+
+function cardIn(root: HTMLElement | null, id: string): HTMLElement | null {
+  if (!root) return null;
+  return [...root.querySelectorAll<HTMLElement>('[data-proposal]')].find((el) => el.dataset.proposal === id) ?? null;
+}
+
 export function ProposalsView() {
   useLocale();
   const version = useDataVersion('proposals');
   const go = useNav((s) => s.go);
+  const paneId = usePaneId();
+  const focusPending = useListFocus((s) => s.pending);
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // The ids shown now and just before, so the next suggestion can be found once one goes.
+  const shown = useRef<string[]>([]);
+  const previous = useRef<string[]>([]);
+  const handled = useRef<{ id: string; before: string[] } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -309,11 +408,53 @@ export function ProposalsView() {
     };
   }, [version]);
 
+  /** Puts the keyboard on a suggestion, or on the heading when none is left. */
+  const ready = (id: string | null, always = false) => {
+    if (!isFocusedPane(paneId)) return;
+    // The writer may have gone on to something else while the list caught up.
+    const active = document.activeElement;
+    const elsewhere = active && active !== document.body && !rootRef.current?.contains(active);
+    if (elsewhere && !always) return;
+    const card = id ? cardIn(rootRef.current, id) : null;
+    const target = card ?? headingRef.current;
+    target?.focus({ preventScroll: true });
+    target?.scrollIntoView({ block: 'nearest' });
+  };
+
+  useEffect(() => {
+    if (!proposals) return;
+    previous.current = shown.current;
+    shown.current = proposals.map((p) => p.id);
+    const done = handled.current;
+    if (done && !shown.current.includes(done.id)) {
+      handled.current = null;
+      ready(nextReady(done.before, done.id, shown.current));
+    }
+    // `ready` reads only refs and the pane, which do not change while this is shown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposals]);
+
+  useEffect(() => {
+    if (!focusPending || !proposals || !isFocusedPane(paneId)) return;
+    useListFocus.getState().done();
+    ready(proposals[0]?.id ?? null, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusPending, proposals, paneId]);
+
+  /** Accepting or rejecting one keeps the writer here, with the next one ready. */
+  const onHandled = (id: string) => {
+    if (shown.current.includes(id)) handled.current = { id, before: shown.current };
+    else ready(nextReady(previous.current, id, shown.current));
+  };
+
   return (
-    <div className="view-pad mcp-proposals">
-      <h1 className="view-title">
-        {proposals && proposals.length > 0 ? t('Outside suggestions ({count})', { count: proposals.length }) : t('Outside suggestions')}
-      </h1>
+    <div className="view-pad mcp-proposals" ref={rootRef}>
+      <div className="mcp-proposals-head">
+        <h1 className="view-title" tabIndex={-1} ref={headingRef}>
+          {proposals && proposals.length > 0 ? t('Outside suggestions ({count})', { count: proposals.length }) : t('Outside suggestions')}
+        </h1>
+        <PinButton />
+      </div>
       <p className="muted mcp-intro">
         {t('AI tools outside LoreCraft can suggest changes, and nothing changes until you accept one. Accepting saves the old version in History first.')}
       </p>
@@ -330,7 +471,7 @@ export function ProposalsView() {
         </p>
       )}
       {proposals && <BulkActions proposals={proposals} />}
-      {proposals?.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} />)}
+      {proposals?.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} onHandled={onHandled} />)}
     </div>
   );
 }

@@ -143,6 +143,11 @@ the top bar, and the suggestion waits under **AI > Outside suggestions**, showin
 
 Suggestions are kept in the project, so they wait for you across restarts. You still save as usual.
 
+If suggestions come often, press **Pin to top bar** on the list. The count then stays in the top
+bar, even at none, and goes up as suggestions arrive. Clicking it opens the list in the pane beside
+your writing. After you accept or reject one, the next one is ready, and a page named in a
+suggestion opens in the other pane, so the list stays open. The pin is kept in your settings.
+
 ## Privacy and safety
 
 - **Off by default.** With it off, nothing listens, and `--mcp` refuses every tool call.

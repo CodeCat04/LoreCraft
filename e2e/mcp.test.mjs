@@ -431,6 +431,84 @@ describe('mcp', () => {
     assert.ok(ideas.some((idea) => idea.text.includes('What if the gate remembers') && idea.text.includes('From e2e-stdio')));
   });
 
+  it('pins the list: a live count in the top bar opens it beside, and accepting keeps the writer in it', async () => {
+    app = await launch(workspace);
+    const { page } = app;
+    await createProject(page, 'Pinned World');
+    const { aria, scene } = await seed(page);
+    const status = await turnOn(page);
+    const http = track(await connectHttp(status.url, status.token));
+
+    // Pinned from the list itself.
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'AI', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Outside suggestions' }).click();
+    await page.getByRole('heading', { name: 'Outside suggestions' }).waitFor();
+    const pin = page.getByRole('button', { name: 'Pin to top bar' });
+    assert.equal(await pin.getAttribute('aria-pressed'), 'false');
+    await pin.click();
+    await waitUntil(async () => (await rpc(page, 'settings.get', {})).mcp?.pinned === true, 3000, 'the pin to be saved');
+    assert.equal(await pin.getAttribute('aria-pressed'), 'true');
+    const badge = page.getByTestId('mcp-pinned-badge');
+    assert.equal(await badge.getAttribute('aria-label'), 'No outside suggestions waiting');
+
+    // The writer goes back to writing. Suggestions arriving over MCP raise the count live.
+    await page.locator('.area-tabs').getByRole('button', { name: 'Write' }).click();
+    await read(http, 'propose_edit', { target: 'page', title: 'Aria Vance', quote: 'ember gate', replacement: 'iron gate' });
+    await page.getByRole('button', { name: '1 outside suggestion' }).waitFor();
+    await read(http, 'propose_edit', { target: 'scene', id: scene.id, quote: 'Rain fell', replacement: 'Snow fell' });
+    await page.getByRole('button', { name: '2 outside suggestions' }).waitFor();
+    assert.equal(await badge.locator('.mcp-badge-count').innerText(), '2');
+    assert.equal(await page.getByRole('heading', { name: /Outside suggestions/ }).count(), 0, 'nothing opened by itself');
+    // The count in sight is the news, so it is read out rather than shown again in a toast.
+    assert.equal(await page.locator('.mcp-live').innerText(), '2 outside suggestions');
+    assert.equal(await page.locator('.toast').filter({ hasText: 'left a suggestion' }).count(), 0);
+
+    // The badge opens the list in the pane beside the writing.
+    await badge.click();
+    const beside = page.getByRole('region', { name: 'Second pane' });
+    await beside.getByRole('heading', { name: 'Outside suggestions (2)' }).waitFor();
+    await waitUntil(
+      () => page.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Suggestion: Aria Vance'),
+      3000,
+      'the first suggestion to be ready',
+    );
+    await app.screenshot('mcp-pinned');
+
+    // A page named in a suggestion opens in the other pane, and the list stays.
+    await beside.getByRole('button', { name: 'Aria Vance', exact: true }).click();
+    await page.locator('main.content').getByRole('heading', { name: 'Aria Vance' }).first().waitFor();
+    await beside.getByRole('heading', { name: 'Outside suggestions (2)' }).waitFor();
+
+    // Accepting keeps the writer in the list, with the next suggestion ready.
+    await beside.getByRole('button', { name: 'Accept: Aria Vance' }).click();
+    await waitUntil(
+      async () => JSON.stringify((await rpc(page, 'pages.get', { id: aria.id })).content).includes('iron gate'),
+      5000,
+      'the edit to apply',
+    );
+    await beside.getByRole('heading', { name: 'Outside suggestions (1)' }).waitFor();
+    await page.getByRole('button', { name: '1 outside suggestion' }).waitFor();
+    await waitUntil(
+      () => page.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Suggestion: The gate at dawn'),
+      3000,
+      'the next suggestion to be ready',
+    );
+
+    // Rejecting the last one leaves the list open, and the count at none.
+    await beside.getByRole('button', { name: 'Reject: The gate at dawn' }).click();
+    await beside.getByText('Nothing is waiting.', { exact: false }).waitFor();
+    await page.getByRole('button', { name: 'No outside suggestions waiting' }).waitFor();
+    assert.match(JSON.stringify((await rpc(page, 'nodes.get', { id: scene.id })).content), /Rain fell/);
+
+    // The pin is remembered in the next session.
+    await saved(workspace.file('pinned.lorecraft'));
+    await rpc(page, 'settings.update', { patch: { save: { reopenLast: false } } });
+    await quit();
+    app = await launch(workspace);
+    await createProject(app.page, 'Next Session');
+    await app.page.getByRole('button', { name: 'No outside suggestions waiting' }).waitFor();
+  });
+
   it('refuses a wrong token, a wrong origin or host, and everything when off', async () => {
     app = await launch(workspace);
     const { page } = app;
