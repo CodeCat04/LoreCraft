@@ -1,0 +1,66 @@
+/* Plan a story. Theme tokens only. */
+
+.plan-view { max-width: 56rem; }
+.plan-head { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; }
+.plan-head .view-title { flex: 1; }
+.plan-head-actions { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+.plan-toggle { display: inline-flex; align-items: center; gap: 0.375rem; font-size: 0.875rem; }
+.plan-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.plan-steps { display: flex; flex-wrap: wrap; gap: 0.25rem; list-style: none; margin: 0 0 1rem; padding: 0; }
+.plan-step {
+  font: inherit;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.plan-step.is-done { color: var(--text); }
+.plan-step.is-current { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.plan-step:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.plan-body { display: flex; flex-direction: column; gap: 0.75rem; min-height: 16rem; }
+.plan-step-title { font-size: 1.125rem; font-weight: 600; margin: 0; }
+.plan-step-title:focus { outline: none; }
+.plan-big { width: 100%; min-height: 12rem; }
+
+.plan-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.625rem; }
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.625rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--surface);
+}
+.plan-row { display: flex; gap: 0.375rem; align-items: center; flex-wrap: wrap; }
+.plan-name { flex: 1; min-width: 10rem; font-weight: 600; }
+.plan-existing { white-space: nowrap; }
+.plan-entities, .plan-outline { display: flex; flex-direction: column; gap: 0.625rem; align-items: flex-start; }
+.plan-entities > .plan-list, .plan-outline > .plan-list { align-self: stretch; }
+.plan-scenes { margin: 0.25rem 0 0.25rem 1rem; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; list-style: none; }
+.plan-scene { display: flex; flex-direction: column; gap: 0.25rem; padding-left: 0.5rem; border-left: 2px solid var(--border-strong); }
+
+.plan-structures, .plan-target { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.plan-target legend { font-weight: 600; margin-bottom: 0.25rem; }
+.plan-structure { display: flex; gap: 0.5rem; align-items: flex-start; }
+.plan-beats { margin: 0.375rem 0 0; padding-left: 1.25rem; }
+.plan-review { display: flex; flex-direction: column; gap: 0.75rem; align-items: flex-start; }
+.plan-review section { align-self: stretch; }
+.plan-review h3 { font-size: 1rem; margin: 0.25rem 0; }
+.plan-pre { white-space: pre-wrap; margin: 0; }
+.plan-done { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem; border: 1px solid var(--success); border-radius: 0.375rem; background: var(--surface); }
+.plan-done h2 { margin: 0; font-size: 1.125rem; }
+
+.plan-busy { color: var(--text-muted); }
+.plan-actions { display: flex; gap: 0.5rem; align-items: center; margin-top: 1.25rem; flex-wrap: wrap; }
+.plan-spacer { flex: 1; }
+.plan-apply-list { list-style: none; padding: 0; margin: 0.5rem 0; max-height: 22rem; overflow: auto; display: flex; flex-direction: column; gap: 0.375rem; }
+
+/* Ways in from the Write area. */
+.write-empty-plan { display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap; margin-top: 0.5rem; }
+.plan-heading-row { display: flex; align-items: baseline; gap: 0.75rem; justify-content: space-between; }

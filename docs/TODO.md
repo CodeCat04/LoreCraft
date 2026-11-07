@@ -63,10 +63,10 @@ Ideas from comparing LoreCraft with other AI writing tools. Everything uses the 
 - [ ] Each idea can be kept or discarded, and "more like this" asks for more. Kept ideas go to the Inbox or straight to a new page.
 
 ## 10. Story planning wizard
-- [ ] A step-by-step **Plan a story** wizard: Braindump, then Synopsis, Characters, World, Outline and Scenes. The AI suggests at each step, and you edit, skip or go back.
-- [ ] At the end, it creates the wiki pages (characters, places) and the book's chapters and scenes with synopses. You review everything first; nothing is created silently.
-- [ ] Story structure templates to start from: three-act, the hero's journey, a story circle, a beat sheet, a romance arc, a mystery. They're also available on their own for the outline and corkboard of an existing book.
-- [ ] Progress is saved, so the wizard can be left and resumed.
+- [x] A step-by-step **Plan a story** wizard: Braindump, then Synopsis, Characters, World, Outline and Scenes. The AI suggests at each step, and you edit, skip or go back.
+- [x] At the end, it creates the wiki pages (characters, places) and the book's chapters and scenes with synopses. You review everything first; nothing is created silently.
+- [x] Story structure templates to start from: three-act, the hero's journey, a story circle, a beat sheet, a romance arc, a mystery. They're also available on their own for the outline and corkboard of an existing book.
+- [x] Progress is saved, so the wizard can be left and resumed.
 
 ## 11. Share prompts as files
 - [ ] Export one or all custom prompts from the prompt library to a file, and import prompts from a file (with a preview, and no duplicates).

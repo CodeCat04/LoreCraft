@@ -24,6 +24,7 @@ import { wordsText } from './WriteStatus';
 import { t } from '../lib/i18n';
 import type { NodeMeta, NodeStatus } from '../lib/types';
 import { useLocale } from '../state/language';
+import { ApplyStructureButton } from '../plan/PlanButtons';
 
 /** Out here so that dnd-kit does not see a new sensor, and wake every card, each render. */
 const POINTER_OPTIONS = { activationConstraint: { distance: 6 } };
@@ -203,6 +204,7 @@ export function Corkboard({ nodeId }: { nodeId?: string }) {
             <h1 className="cork-title">{label ?? t('Whole book')}</h1>
             {single && <span className="muted small">{wordsText(index.totals.get(chapters[0].id) ?? 0)}</span>}
             <span className="binder-spacer" />
+            {!nodeId && <ApplyStructureButton />}
             {nodeId && (
               <button type="button" className="btn btn-sm" onClick={() => goToMode('cork')}>
                 {t('Show whole book')}

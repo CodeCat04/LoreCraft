@@ -56,6 +56,7 @@ React UI (WebView2)                    Rust engine (src-tauri)
 | `src-tauri/src/logs.rs`, `updates.rs` | support | Log files and update checks |
 | `src/editor/comments/`, `src/notes/` | notes | Comment marks, the margin, the list, `addComment` |
 | `src/prose/` | notes | Prose checks with no AI (in a worker), and read-aloud |
+| `src/plan/` | plan | Plan a story (the wizard, its progress in project meta `planWizard`) and the story structure templates, with Apply structure |
 
 Each module exposes `src/<module>/index.ts`, which `src/shell/routes.tsx` and
 `src/shell/modules.ts` already import. Modules register menu items and shortcuts

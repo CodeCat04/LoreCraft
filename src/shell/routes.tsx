@@ -11,6 +11,7 @@ import { NotesView } from '../notes';
 import { SettingsView } from '../settings';
 import { StylesView } from '../writingStyles';
 import { MediaLibraryView } from '../media/library';
+import { PlanView } from '../plan';
 
 /** Maps a route to its screen. Keys reset a screen's state when its subject changes. */
 export function RouteView({ route }: { route: Route }) {
@@ -73,5 +74,7 @@ export function RouteView({ route }: { route: Route }) {
       return <SettingsView tab={route.tab} />;
     case 'media':
       return <MediaLibraryView />;
+    case 'plan':
+      return <PlanView bookId={route.bookId} />;
   }
 }

@@ -12,6 +12,7 @@ import type { NodeMeta, NodeStatus } from '../lib/types';
 import { toast } from '../shell/toasts';
 import { useLocale } from '../state/language';
 import { useTitles } from '../state/project';
+import { ApplyStructureButton } from '../plan/PlanButtons';
 
 function save(id: string, patch: { status?: NodeStatus; synopsis?: string }) {
   showPatch(id, patch);
@@ -106,7 +107,10 @@ export function Outline() {
   return (
     <div className="write-scroll">
       <div className="outline">
-        <h1 className="outline-heading">{book?.title ?? t('Outline')}</h1>
+        <div className="plan-heading-row">
+          <h1 className="outline-heading">{book?.title ?? t('Outline')}</h1>
+          <ApplyStructureButton />
+        </div>
         {lines.length === 0 ? (
           <p className="muted">{t('This book is empty.')}</p>
         ) : (
