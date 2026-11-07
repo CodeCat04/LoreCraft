@@ -50,6 +50,7 @@ React UI (WebView2)                    Rust engine (src-tauri)
 | `src/editor/find/` | find | Find and replace within the current editor |
 | `src/editor/makePage/` | find | Linking selected text, or making a page from it |
 | `src/inbox/` | inbox | Quick capture and the Inbox screen. `src/inbox/api.ts` is the way to add ideas |
+| `src/brainstorm/` | ai | The Brainstorm board: idea cards from one JSON request, kept to the Inbox or made into pages |
 | `src/editor/figure/`, `src/media/`, `src/lib/assets.ts` | media | Figures in the editor, drops, uploads, Insert commands |
 | `src/wiki/`, `src/write/`, `src/ai/`, `src/consistency/`, `src/exporters/`, `src/extras/`, `src/settings/`, `src/facts/` | per module | Feature UI |
 | `src/writingStyles/` | styles | The style library, prompts, blends, style guide and their screen |

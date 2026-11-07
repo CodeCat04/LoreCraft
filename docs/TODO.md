@@ -30,3 +30,19 @@ A style can already be set for a project or book (`choices.project.styleId`, src
 - [x] Optionally keep earlier versions as "1 of 2" arrows instead of deleting them.
 - [x] It works with local and cloud providers alike. The cloud permission and spending-limit checks apply to reruns too.
 - Code: src/ai/AiPane.tsx, src/ai/store.ts (there's already a `retry`, used only after errors).
+
+# Round 2
+
+## 9. Brainstorm board
+- [x] A Brainstorm view, opened from the AI menu and Ctrl+K. Pick a category (character names, place names, plot twists, what happens next, conflicts, world details, titles, objects, dialogue lines, character traits, or your own question), with an optional note and an optional focus: what was open, or a chosen page.
+- [x] About 8 short ideas come back as cards, from one JSON request parsed loosely, with the wiki and book context, the spoiler limit and the focus scene.
+- [x] Each card has Keep (to the Inbox, tagged with the category), New page (names, places and objects, through the usual new-page dialog), Discard and More like this.
+- [x] The board has More and Clear, and survives switching views within a session. Ideas already shown are not shown again.
+- [x] Fully keyboard usable (K, N, M, Delete on a card, arrow keys between cards), with ARIA labels.
+- Code: src/brainstorm/.
+
+## 11. Share prompts as files
+- [x] In the prompt library: Export for one prompt, Export all custom, and Import.
+- [x] A small versioned JSON format, `{ "lorecraft_prompts": 1, "prompts": [...] }`, documented in docs/IMPORT_FORMAT.md.
+- [x] Import shows a preview, skips exact duplicates, renames name clashes ("Name (2)") and checks scope and action.
+- Code: src/ai/promptFiles.ts, src/ai/PromptLibrary.tsx.
