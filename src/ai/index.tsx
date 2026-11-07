@@ -43,6 +43,7 @@ import { watchForSummaries } from './summaries/worker';
 import { useNav } from '../state/nav';
 import { profileForTask } from './client';
 import { confirmRun } from './limits/confirmRun';
+import { registerDraftingCommands } from './drafting';
 
 /** Flesh out, after the cost estimate when the model is a cloud one. */
 async function fleshOutWithEstimate(): Promise<void> {
@@ -70,6 +71,7 @@ export { TalkToCharacterButton } from './companions/CharacterUi';
 export { describeImage, profileSupportsImages, assetToImageBlock, type DescribeImageOptions } from './vision';
 export { getStorySoFar, type StoryEntry, type StoryParams, type StorySoFar } from './summaries/api';
 export { canSendTo } from './limits/localOnly';
+export { draftSceneFromSynopsis, firstDraft } from './drafting';
 export { confirmRun } from './limits/confirmRun';
 export { estimateRunCost, type RunCostEstimate } from './limits/estimate';
 export {
@@ -327,6 +329,10 @@ function registerAiCommands() {
 export function registerAi() {
   registerAiCommands();
   subscribeLocale(registerAiCommands);
+
+  // Drafting a scene from notes, a synopsis or a premise.
+  registerDraftingCommands();
+  subscribeLocale(registerDraftingCommands);
 
   watchAiActivity();
 

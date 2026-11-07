@@ -5,6 +5,8 @@
  * message, after them.
  */
 
+import type { BookPov, BookVoice } from '../write/bookVoice';
+
 /** How to read what the app quotes to the model. Shared by every prompt. */
 export const READING_THE_MATERIAL = `How to read the material you are given:
 - Lore pages have a status. Canon is established fact. Draft is tentative, so you can use it, but say so if something important rests on it. Idea is not established, so use it only when the author asks about it. Retconned is no longer true, so never treat it as fact, and mention it only to explain a change.
@@ -81,4 +83,37 @@ export function expandTemplate(template: string, values: TemplateValues): string
     if (value === undefined || value === '') return `(no ${name === 'page' ? 'page or scene' : name} available)`;
     return `<${tag}>\n${fence(value)}\n</${tag}>`;
   });
+}
+
+// ---------------------------------------------------------------------------
+// A book's point of view and tense
+// ---------------------------------------------------------------------------
+
+/** How each point of view reads in a prompt, with and without the scene's own character. */
+const POV_TEXT: Record<BookPov, { plain: string; through: (name: string) => string }> = {
+  first: { plain: 'first person', through: (name) => `first person, told by ${name}` },
+  second: { plain: 'second person ("you")', through: (name) => `second person, with ${name} as "you"` },
+  'close-third': { plain: 'close third person', through: (name) => `close third person, staying with ${name}` },
+  'distant-third': { plain: 'distant third person', through: (name) => `distant third person, following ${name}` },
+  omniscient: { plain: 'an omniscient narrator', through: (name) => `an omniscient narrator, centred on ${name} in this scene` },
+  multiple: {
+    plain: 'close third person, with the point-of-view character changing from scene to scene',
+    through: (name) => `close third person, through ${name} in this scene`,
+  },
+};
+
+/**
+ * The book's point of view and tense, as lines for the model, or empty if neither is set.
+ * The scene's own point-of-view character always applies: it names whose view it is, and
+ * the book's setting says how that view is told.
+ */
+export function narrationInstruction(voice: BookVoice | null | undefined, povCharacter?: string | null): string {
+  const lines: string[] = [];
+  const name = povCharacter?.trim();
+  const pov = voice?.pov ? POV_TEXT[voice.pov] : undefined;
+  if (pov) lines.push(`- Point of view: ${name ? pov.through(name) : pov.plain}.`);
+  else if (name && voice?.tense) lines.push(`- Point of view: ${name}'s.`);
+  if (voice?.tense === 'past' || voice?.tense === 'present') lines.push(`- Tense: ${voice.tense} tense.`);
+  if (lines.length === 0) return '';
+  return `Narration for this book. Follow it in any prose you write for it:\n${lines.join('\n')}`;
 }
