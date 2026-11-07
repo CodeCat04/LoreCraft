@@ -253,7 +253,7 @@ function VersionArrows({ message, label }: { message: StoredMessage; label: stri
   const versions = useMemo(() => versionsOf(tree, message), [tree, message]);
   if (versions.count < 2) return null;
   return (
-    <span className="ai-versions" role="group" aria-label={label} data-testid="ai-versions">
+    <span className="ai-turn-versions" role="group" aria-label={label} data-testid="ai-turn-versions">
       <button
         type="button"
         className="icon-btn"

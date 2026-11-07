@@ -1863,7 +1863,7 @@ describe('AI against the mock server', () => {
     await waitForIdle(page);
     assert.equal((await sent('/v1/messages')).length, before, 'nothing went out');
     assert.match(await lastAnswerText(page), /Tower Take 1\./, 'the reply there was still shows');
-    assert.equal(await pane.getByTestId('ai-versions').count(), 0, 'and no empty version was made');
+    assert.equal(await pane.getByTestId('ai-turn-versions').count(), 0, 'and no empty version was made');
 
     await pane.getByRole('button', { name: 'Edit', exact: true }).click();
     const editor = page.getByRole('textbox', { name: 'Edit your message' });
