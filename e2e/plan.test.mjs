@@ -257,7 +257,21 @@ describe('plan a story', () => {
     assert.ok(characters >= 1, 'characters were suggested');
     // Aria is already in the wiki, so she is linked rather than made again.
     const ariaCard = page.locator('[data-plan-entity="Aria Vale"]');
-    if (await ariaCard.count()) assert.equal(await ariaCard.getByText('In the wiki').count(), 1);
+    if (await ariaCard.count()) assert.equal(await ariaCard.getByText('In the wiki', { exact: true }).count(), 1);
+
+    // Ask again keeps what the writer added or edited by hand.
+    const first = page.locator('[data-plan-entity]').first();
+    const editedName = await first.getAttribute('data-plan-entity');
+    await page.getByRole('textbox', { name: `Role of ${editedName}`, exact: true }).fill('Edited by hand');
+    await page.getByRole('button', { name: 'Add a character' }).click();
+    const blank = await page.locator('[data-plan-entity]').count();
+    await page.getByRole('textbox', { name: `Name of Item ${blank}`, exact: true }).fill('Mira Quell');
+    await page.getByRole('textbox', { name: 'Role of Mira Quell', exact: true }).fill('A lantern keeper');
+    await page.getByRole('button', { name: 'Ask again' }).click();
+    await waitForAi();
+    assert.equal(await page.getByRole('textbox', { name: `Role of ${editedName}`, exact: true }).inputValue(), 'Edited by hand');
+    assert.equal(await page.getByRole('textbox', { name: 'Role of Mira Quell', exact: true }).inputValue(), 'A lantern keeper');
+    assert.equal(await page.locator(`[data-plan-entity="${editedName}"]`).count(), 1, 'no duplicate of an edited entry');
 
     await next(page);
     await waitForAi();

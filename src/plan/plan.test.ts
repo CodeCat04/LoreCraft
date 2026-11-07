@@ -6,10 +6,12 @@ import {
   buildCreationPlan,
   chaptersFromBeats,
   emptyPlan,
+  mergeSuggestions,
   parseEntities,
   parseOutline,
   parseStored,
   resolveName,
+  type PlanEntity,
   type PlanState,
 } from './plan';
 import { structureById, structures } from './templates';
@@ -102,10 +104,34 @@ describe('reading model replies', () => {
   });
 });
 
+describe('asking again', () => {
+  const entity = (name: string, extra: Partial<PlanEntity> = {}): PlanEntity => ({ key: name, name, pageType: 'character', role: '', description: '', ...extra });
+
+  it('keeps every entry the writer added or edited, replaces untouched suggestions, and skips repeated names', () => {
+    const current = [
+      entity('Aria', { touched: true, role: 'Edited by hand' }),
+      entity('Old suggestion'),
+      entity('Mira', { touched: true }),
+      entity('Another old one'),
+    ];
+    const suggested = [entity('aria', { role: 'From the model' }), entity('Bren'), entity('  MIRA '), entity('Old suggestion'), entity('bren')];
+    const merged = mergeSuggestions(current, suggested);
+    expect(merged.map((e) => e.name)).toEqual(['Aria', 'Mira', 'Bren', 'Old suggestion']);
+    expect(merged[0]).toEqual(current[0]);
+    expect(merged[1]).toEqual(current[2]);
+    expect(merged.slice(2).every((e) => !e.touched)).toBe(true);
+  });
+
+  it('keeps an empty entry the writer added', () => {
+    const blank = entity('', { touched: true });
+    expect(mergeSuggestions([blank], [entity('Bren')])).toEqual([blank, entity('Bren', { touched: undefined })]);
+  });
+});
+
 describe('saved progress', () => {
   it('comes back as it was saved', () => {
     const plan: PlanState = { ...emptyPlan(), step: 'world', braindump: 'Ideas', structureId: 'romance', asked: ['synopsis'] };
-    plan.characters = [{ key: 'a', name: 'Aria', pageType: 'character', role: 'Ranger', description: '', existingId: 'p1' }];
+    plan.characters = [{ key: 'a', name: 'Aria', pageType: 'character', role: 'Ranger', description: '', existingId: 'p1', touched: true }];
     plan.chapters = [{ key: 'c', title: 'One', synopsis: '', scenes: [{ key: 's', title: 'Dawn', synopsis: 'x', pov: 'Aria', cast: ['Aria'] }] }];
     const back = parseStored(JSON.stringify(plan));
     expect(back).toEqual(plan);

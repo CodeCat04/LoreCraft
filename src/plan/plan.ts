@@ -19,6 +19,8 @@ export interface PlanEntity {
   description: string;
   /** Set when it is an existing wiki page, which is linked to rather than made again. */
   existingId?: string;
+  /** Added or edited by the writer. Asking the AI again never replaces it. */
+  touched?: boolean;
 }
 
 export interface PlanScene {
@@ -106,6 +108,7 @@ export function parseStored(text: string | null): PlanState | null {
         role: str(r.role, 400),
         description: str(r.description),
         ...(str(r.existingId) ? { existingId: str(r.existingId) } : {}),
+        ...(r.touched === true ? { touched: true } : {}),
       };
     });
   const target = record(value.target);
@@ -193,6 +196,24 @@ function parseChapterList(value: unknown, keepKeys: boolean): PlanChapter[] {
       scenes,
     };
   });
+}
+
+/**
+ * Fresh suggestions into a list. Everything the writer added or edited stays where it is.
+ * Untouched suggestions from before are replaced, and a new one whose name is already kept
+ * is left out.
+ */
+export function mergeSuggestions(current: PlanEntity[], suggested: PlanEntity[]): PlanEntity[] {
+  const kept = current.filter((e) => e.touched);
+  const names = new Set(kept.map((e) => nameKey(e.name)).filter(Boolean));
+  const added: PlanEntity[] = [];
+  for (const entity of suggested) {
+    const key = nameKey(entity.name);
+    if (!key || names.has(key)) continue;
+    names.add(key);
+    added.push({ ...entity, touched: undefined });
+  }
+  return [...kept, ...added];
 }
 
 /** Chapters with their scenes from a reply. Throws if there are none, which asks again. */

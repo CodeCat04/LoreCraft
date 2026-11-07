@@ -24,6 +24,7 @@ import {
   buildCreationPlan,
   chaptersFromBeats,
   findExisting,
+  mergeSuggestions,
   newKey,
   STEPS,
   type ExistingPage,
@@ -92,7 +93,7 @@ function EntityList(props: {
 }) {
   const { list, types, label, addLabel, onChange } = props;
   const set = (key: string, patch: Partial<PlanEntity>) =>
-    onChange(list.map((e) => (e.key === key ? { ...e, ...patch, ...(patch.name !== undefined ? { existingId: undefined } : {}) } : e)));
+    onChange(list.map((e) => (e.key === key ? { ...e, ...patch, touched: true, ...(patch.name !== undefined ? { existingId: undefined } : {}) } : e)));
   return (
     <div className="plan-entities">
       {list.length === 0 && <p className="muted">{t('Nothing here yet.')}</p>}
@@ -160,7 +161,7 @@ function EntityList(props: {
       <button
         type="button"
         className="btn"
-        onClick={() => onChange([...list, { key: newKey(), name: '', pageType: types?.[0] ?? 'character', role: '', description: '' }])}
+        onClick={() => onChange([...list, { key: newKey(), name: '', pageType: types?.[0] ?? 'character', role: '', description: '', touched: true }])}
       >
         {addLabel}
       </button>
@@ -594,10 +595,10 @@ export function PlanView({ bookId }: { bookId?: string }) {
         if (!controller.signal.aborted) updatePlan({ synopsis: text });
       } else if (which === 'characters') {
         const list = markExisting(await askCharacters(current, entries, controller.signal));
-        if (!controller.signal.aborted) updatePlan({ characters: list });
+        if (!controller.signal.aborted) updatePlan((p) => ({ characters: mergeSuggestions(p.characters, list) }));
       } else if (which === 'world') {
         const list = markExisting(await askWorld(current, entries, worldTypes(), controller.signal));
-        if (!controller.signal.aborted) updatePlan({ world: list });
+        if (!controller.signal.aborted) updatePlan((p) => ({ world: mergeSuggestions(p.world, list) }));
       } else if (which === 'outline') {
         const chapters = await askOutline(current, entries, structureById(current.structureId), controller.signal);
         if (!controller.signal.aborted) updatePlan({ chapters });
