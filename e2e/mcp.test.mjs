@@ -431,6 +431,112 @@ describe('mcp', () => {
     assert.ok(ideas.some((idea) => idea.text.includes('What if the gate remembers') && idea.text.includes('From e2e-stdio')));
   });
 
+  it('lets an outside AI write in the book: inserts, rewrites reviewed in the scene, new scenes, chapters and details', async () => {
+    app = await launch(workspace);
+    const { page } = app;
+    await createProject(page, 'Writing World');
+    const { aria, scene, book } = await seed(page);
+    const paragraphs = ['Rain fell on the ember gate.', 'Aria waited by the river until dusk.', 'Bren came late — as always.', 'The wind rose.'];
+    await rpc(page, 'nodes.update', {
+      id: scene.id,
+      patch: { content: { type: 'doc', content: paragraphs.map((p) => ({ type: 'paragraph', content: [{ type: 'text', text: p }] })) } },
+    });
+    const plain = async (id) =>
+      ((await rpc(page, 'nodes.get', { id })).content.content ?? []).map((b) => (b.content ?? []).map((c) => c.text ?? '').join('')).join('\n\n');
+    const status = await turnOn(page);
+    const http = track(await connectHttp(status.url, status.token));
+    const names = (await http.listTools()).tools.map((t) => t.name);
+    for (const name of ['propose_insert', 'propose_rewrite', 'propose_new_scene', 'propose_new_chapter', 'propose_scene_details']) {
+      assert.ok(names.includes(name), name);
+    }
+
+    // A quote that is not there names the closest passage, so the model can try again.
+    const missing = await call(http, 'propose_insert', { id: scene.id, after_quote: 'Aria waited near the river till dusk', text: 'x' });
+    assert.equal(missing.isError, true);
+    assert.match(missing.text, /closest passage is: "Aria waited by the river until dusk\."/);
+
+    // An insert at the end, accepted from the list. A typed "--" matches the em dash.
+    await read(http, 'propose_insert', { id: scene.id, after_quote: 'came late -- as always.', text: 'He shrugged.' });
+    await read(http, 'propose_insert', { id: scene.id, at: 'end', text: 'Night came.\n\nThe gate held.' });
+    await page.getByRole('button', { name: '2 outside suggestions' }).click();
+    await page.getByRole('heading', { name: /Outside suggestions \(2\)/ }).waitFor();
+    assert.match(await page.locator('.mcp-diff ins').last().innerText(), /The gate held/);
+    await page.locator('.mcp-bulk').getByRole('button', { name: 'Accept all' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Accept all' }).click();
+    await waitUntil(async () => (await rpc(page, 'mcp.proposalCount')) === 0, 5000, 'both inserts accepted');
+    assert.equal(
+      await plain(scene.id),
+      'Rain fell on the ember gate.\n\nAria waited by the river until dusk.\n\nBren came late — as always.\n\nHe shrugged.\n\nThe wind rose.\n\nNight came.\n\nThe gate held.',
+    );
+
+    // A range rewrite, reviewed in the scene: one change kept, the other turned down.
+    await read(http, 'propose_rewrite', {
+      id: scene.id,
+      from_quote: 'Aria waited',
+      to_quote: 'He shrugged.',
+      replacement: 'Aria left at dusk.\n\nBren came late — as always.\n\nHe laughed.',
+    });
+    await page.getByRole('heading', { name: /Outside suggestions \(1\)/ }).waitFor();
+    assert.match(await page.locator('.mcp-diff del').first().innerText(), /waited/);
+    await page.getByRole('button', { name: 'Review in the document: The gate at dawn' }).click();
+    await waitUntil(async () => (await page.locator('[data-hunk]').count()) >= 2, 8000, 'the changes to show in the scene');
+    await app.screenshot('mcp-review-in-scene');
+    await page.getByRole('button', { name: 'Accept this change (Alt+A)' }).first().click();
+    await waitUntil(async () => (await plain(scene.id)).includes('Aria left'), 5000, 'the first change to be saved');
+    while ((await page.locator('[data-hunk]').count()) > 0) {
+      await page.getByRole('button', { name: 'Reject this change (Alt+R)' }).first().click();
+      await page.waitForTimeout(100);
+    }
+    await waitUntil(async () => (await rpc(page, 'mcp.proposalCount')) === 0, 5000, 'the reviewed suggestion to be done');
+    await waitUntil(async () => (await plain(scene.id)).includes('He shrugged.'), 5000, 'the scene to save');
+    const reviewed = await plain(scene.id);
+    assert.match(reviewed, /Aria left/);
+    assert.match(reviewed, /He shrugged\./, 'the rejected change left the text alone');
+    assert.doesNotMatch(reviewed, /He laughed/);
+
+    // A rewrite whose anchors have gone says so, and changes nothing.
+    await read(http, 'propose_rewrite', { id: scene.id, from_quote: 'The wind rose.', to_quote: 'The gate held.', replacement: 'Calm.' });
+    await rpc(page, 'nodes.update', {
+      id: scene.id,
+      patch: { content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'All of it rewritten by hand.' }] }] } },
+    });
+    await page.getByRole('button', { name: '1 outside suggestion' }).click();
+    await page.getByRole('button', { name: 'Accept: The gate at dawn' }).click();
+    await page.getByRole('alert').filter({ hasText: 'no longer there' }).waitFor();
+    assert.equal(await plain(scene.id), 'All of it rewritten by hand.');
+    await page.getByRole('button', { name: 'Reject: The gate at dawn' }).click();
+    await waitUntil(async () => (await rpc(page, 'mcp.proposalCount')) === 0, 5000, 'the stale one rejected');
+
+    // A new scene, a new chapter with its first scene, and new details, all accepted.
+    await read(http, 'propose_new_scene', { title: 'The river', after: scene.id, pov: 'Aria Vance', text: 'Water *everywhere*.\n\nCold.' });
+    await read(http, 'propose_new_chapter', { title: 'Chapter Two', scene_title: 'Dawn', text: 'Morning came.' });
+    await read(http, 'propose_scene_details', { id: scene.id, synopsis: 'Aria waits at the gate.', status: 'revised', cast: ['Aria Vance'] });
+    await page.getByRole('heading', { name: /Outside suggestions \(3\)/ }).waitFor();
+    await page.getByText('New scene:').waitFor();
+    await page.getByText('New chapter:').waitFor();
+    await app.screenshot('mcp-new-writing');
+    await page.locator('.mcp-bulk').getByRole('button', { name: 'Accept all' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Accept all' }).click();
+    await waitUntil(async () => (await rpc(page, 'mcp.proposalCount')) === 0, 5000, 'all three accepted');
+
+    const tree = await rpc(page, 'nodes.tree', { bookId: book.id });
+    const river = tree.find((n) => n.title === 'The river');
+    assert.ok(river, 'the new scene exists');
+    assert.equal(river.parentId, scene.parentId);
+    assert.equal(river.povPageId, aria.id);
+    assert.equal(await plain(river.id), 'Water everywhere.\n\nCold.');
+    const siblings = tree.filter((n) => n.parentId === scene.parentId).sort((a, b) => a.position - b.position);
+    assert.equal(siblings[siblings.indexOf(siblings.find((n) => n.id === scene.id)) + 1].id, river.id, 'right after the scene it named');
+    const chapter = tree.find((n) => n.kind === 'chapter' && n.title === 'Chapter Two');
+    const dawn = tree.find((n) => n.parentId === chapter?.id);
+    assert.equal(dawn?.title, 'Dawn');
+    assert.equal(await plain(dawn.id), 'Morning came.');
+    const details = await rpc(page, 'nodes.get', { id: scene.id });
+    assert.equal(details.synopsis, 'Aria waits at the gate.');
+    assert.equal(details.status, 'revised');
+    assert.deepEqual(await rpc(page, 'nodes.cast', { id: scene.id }), [aria.id]);
+  });
+
   it('pins the list: a live count in the top bar opens it beside, and accepting keeps the writer in it', async () => {
     app = await launch(workspace);
     const { page } = app;
