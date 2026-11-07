@@ -7,6 +7,7 @@ import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/d
 import { t } from '../lib/i18n';
 import { useLocale } from '../state/language';
 import { useSettings } from '../state/settings';
+import { pickerOrder } from './defaults';
 import { searchStyles } from './library';
 import { getStyle, listStyles } from './store';
 import { genreLabel, type WritingStyle } from './types';
@@ -25,6 +26,14 @@ export function StyleSearchList(props: {
   noneLabel?: string;
   autoFocus?: boolean;
   label?: string;
+  /** With nothing typed, this style comes first, named by `label`, such as "Project style: …". */
+  first?: { styleId: string; label: string } | null;
+  /** With nothing typed, these come next, newest first. */
+  recent?: readonly string[];
+  /** Adds "Set as project default" next to each style. Alt+Enter does it for the active one. */
+  onSetDefault?: (styleId: string) => void;
+  /** The project's own style now, which needs no such button. */
+  projectDefaultId?: string | null;
 }) {
   useLocale();
   const custom = useSettings((s) => s.settings.writingStyles.custom);
@@ -33,10 +42,16 @@ export function StyleSearchList(props: {
   const listId = useId();
   const listRef = useRef<HTMLDivElement>(null);
 
+  const typed = query.trim().length > 0;
+  const firstId = typed ? null : props.first?.styleId ?? null;
+  const recent = useMemo(() => (typed ? [] : props.recent ?? []), [typed, props.recent]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const all = useMemo(() => listStyles(), [custom]);
-  const matches = useMemo(() => searchStyles(all, query), [all, query]);
-  const offerNone = props.noneLabel !== undefined && !query.trim();
+  const matches = useMemo(
+    () => (typed ? searchStyles(all, query) : pickerOrder(all, [firstId, ...recent])),
+    [all, query, typed, firstId, recent],
+  );
+  const offerNone = props.noneLabel !== undefined && !typed;
   const count = matches.length + (offerNone ? 1 : 0);
 
   useEffect(() => setActive(0), [query]);
@@ -44,15 +59,18 @@ export function StyleSearchList(props: {
     listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [active]);
 
+  const styleAt = (index: number) => matches[index - (offerNone ? 1 : 0)];
+
   const choose = (index: number) => {
     if (offerNone && index === 0) props.onChoose(null);
     else {
-      const style = matches[index - (offerNone ? 1 : 0)];
+      const style = styleAt(index);
       if (style) props.onChoose(style.id);
     }
   };
 
   const optionId = (index: number) => `${listId}-${index}`;
+  const { onSetDefault } = props;
 
   return (
     <div className="style-search">
@@ -65,6 +83,7 @@ export function StyleSearchList(props: {
         aria-autocomplete="list"
         aria-activedescendant={count > 0 ? optionId(active) : undefined}
         aria-label={props.label ?? t('Search styles')}
+        aria-keyshortcuts={onSetDefault ? 'Alt+Enter' : undefined}
         placeholder={t('Search by name, genre or trait')}
         autoFocus={props.autoFocus}
         value={query}
@@ -76,6 +95,10 @@ export function StyleSearchList(props: {
           } else if (e.key === 'ArrowUp' && count > 0) {
             e.preventDefault();
             setActive((i) => (i - 1 + count) % count);
+          } else if (e.key === 'Enter' && e.altKey && onSetDefault) {
+            e.preventDefault();
+            const style = styleAt(active);
+            if (style) onSetDefault(style.id);
           } else if (e.key === 'Enter') {
             e.preventDefault();
             choose(active);
@@ -99,7 +122,12 @@ export function StyleSearchList(props: {
         )}
         {matches.map((style, i) => {
           const index = i + (offerNone ? 1 : 0);
-          return (
+          const isFirst = style.id === firstId;
+          const isProjectDefault = !!onSetDefault && style.id === props.projectDefaultId;
+          const hint = isProjectDefault
+            ? t('Project default')
+            : !isFirst && recent.includes(style.id) ? t('Recent') : kindHint(style);
+          const option = (
             <button
               key={style.id}
               type="button"
@@ -108,13 +136,31 @@ export function StyleSearchList(props: {
               tabIndex={-1}
               aria-selected={active === index}
               aria-current={style.id === props.value ? 'true' : undefined}
-              className={`menu-item${active === index ? ' is-active' : ''}${style.id === props.value ? ' style-search-current' : ''}`}
+              className={`menu-item${active === index ? ' is-active' : ''}${style.id === props.value ? ' style-search-current' : ''}${isFirst ? ' style-search-default' : ''}`}
               onMouseEnter={() => setActive(index)}
               onClick={() => choose(index)}
             >
-              <span className="truncate">{style.name}</span>
-              <span className="menu-shortcut truncate">{kindHint(style)}</span>
+              <span className="truncate">{isFirst && props.first ? props.first.label : style.name}</span>
+              <span className="menu-shortcut truncate">{hint}</span>
             </button>
+          );
+          if (!onSetDefault) return option;
+          return (
+            <div key={style.id} role="none" className="style-search-row">
+              {option}
+              {!isProjectDefault && (
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  className="btn btn-sm style-search-set"
+                  aria-label={t('Set {name} as project default', { name: style.name })}
+                  title={t('Set as project default (Alt+Enter)')}
+                  onClick={() => onSetDefault(style.id)}
+                >
+                  {t('Set as project default')}
+                </button>
+              )}
+            </div>
           );
         })}
         {count === 0 && <p className="muted small style-search-empty">{t('No style matches that. Try a shorter search.')}</p>}

@@ -24,7 +24,8 @@ import { useLocale } from '../../state/language';
 import { t } from '../../lib/i18n';
 import { toast } from '../../shell/toasts';
 import { getCommand } from '../../shell/commands';
-import { RewriteInStylePicker, rewriteInstruction } from '../../writingStyles/rewrite';
+import { RewriteInStylePicker, rewriteInstruction, useRewriteDefault } from '../../writingStyles/rewrite';
+import { recordRecentStyle } from '../../writingStyles/store';
 import { LinkButton } from '../makePage/LinkButton';
 import { commentState, startComment } from '../comments/extension';
 import type { EditorSource } from '../RichEditor';
@@ -37,9 +38,13 @@ import { acceptChanges, activeChange, dismissSuggestion, pendingSuggestions, rej
 // Reaching a menu from a command
 // ---------------------------------------------------------------------------
 
+/** How "Rewrite in my style" went: started, or why not. */
+export type MyStyleResult = 'started' | 'no-selection' | 'no-style';
+
 interface MenuControls {
   ask: () => boolean;
   sendToPane: () => boolean;
+  rewriteInMyStyle: () => MyStyleResult;
 }
 
 const controls = new Map<Editor, MenuControls>();
@@ -47,6 +52,11 @@ const controls = new Map<Editor, MenuControls>();
 /** Opens Ask AI on this editor's selection. False if nothing suitable is selected. */
 export function openAskFor(editor: Editor): boolean {
   return controls.get(editor)?.ask() ?? false;
+}
+
+/** Rewrites this editor's selection in the default style at once, as suggestions. */
+export function rewriteInMyStyleFor(editor: Editor): MyStyleResult {
+  return controls.get(editor)?.rewriteInMyStyle() ?? 'no-selection';
 }
 
 /** Sends this editor's selection to the pane. False if nothing is selected. */
@@ -149,6 +159,8 @@ function AskBox(props: {
   initial: string;
   /** Opens on the list of writing styles, for "Rewrite in a style…". */
   pickStyle?: boolean;
+  /** Rewrites in this style as soon as it opens, for "Rewrite in my style". */
+  autoStyle?: { styleId: string; name: string | null };
   /** `finished` means a result is showing, so the selection is not handed back. */
   onClose: (finished: boolean) => void;
   /** Asks for several versions to compare, in place of one result. */
@@ -174,7 +186,7 @@ function AskBox(props: {
   const go = useNav((s) => s.go);
 
   useEffect(() => {
-    if (props.pickStyle) return;
+    if (props.pickStyle || props.autoStyle) return;
     inputRef.current?.focus();
     inputRef.current?.select();
     // Only on opening.
@@ -233,14 +245,25 @@ function AskBox(props: {
     [editor, finish, onVersions, profileId, running, several, source, styleId, targetId],
   );
 
-  const rewriteInStyle = (id: string) => {
-    const rewrite = rewriteInstruction(id);
+  const rewriteInStyle = (id: string, name: string | null = null) => {
+    const rewrite = rewriteInstruction(id, name);
     setPicking(false);
     if (!rewrite) return;
     setStyleId(id);
     setText(rewrite.instruction);
+    void recordRecentStyle(id).catch(() => {});
     submit(rewrite.instruction, rewrite.label, 'replace', undefined, id);
   };
+
+  // "Rewrite in my style" starts at once. A ref, so a second run of this effect starts nothing.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!props.autoStyle || autoStarted.current) return;
+    autoStarted.current = true;
+    rewriteInStyle(props.autoStyle.styleId, props.autoStyle.name);
+    // Only on opening.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const quick = useMemo(() => {
     const byId = new Map(prompts.map((p) => [p.id, p]));
@@ -325,7 +348,11 @@ function AskBox(props: {
         </div>
       )}
       {!running && picking && (
-        <RewriteInStylePicker onChoose={rewriteInStyle} onClose={() => setPicking(false)} />
+        <RewriteInStylePicker
+          nodeId={source.kind === 'node' ? source.id : null}
+          onChoose={rewriteInStyle}
+          onClose={() => setPicking(false)}
+        />
       )}
 
       {running && (
@@ -512,7 +539,10 @@ function readSelection(editor: Editor): Selected | null {
 export function SelectionMenu({ editor, source }: { editor: Editor; source: EditorSource }) {
   useLocale();
   const [selected, setSelected] = useState<Selected | null>(null);
-  const [ask, setAsk] = useState<{ targetId: string; initial: string; pickStyle?: boolean } | null>(null);
+  const [ask, setAsk] = useState<{ targetId: string; initial: string; pickStyle?: boolean; autoStyle?: { styleId: string; name: string | null } } | null>(null);
+  const myStyle = useRewriteDefault(source.kind === 'node' ? source.id : null);
+  const myStyleRef = useRef(myStyle);
+  myStyleRef.current = myStyle;
   const [versions, setVersions] = useState<VersionsRequest | null>(null);
   const pointerDown = useRef(false);
   const timer = useRef<number | undefined>(undefined);
@@ -584,10 +614,10 @@ export function SelectionMenu({ editor, source }: { editor: Editor; source: Edit
   );
 
   const openAsk = useCallback(
-    (range: { from: number; to: number }, initial = '', pickStyle = false) => {
+    (range: { from: number; to: number }, initial = '', pickStyle = false, autoStyle?: { styleId: string; name: string | null }) => {
       if (askRef.current) return;
       const targetId = trackRange(editor, range.from, range.to, true);
-      setAsk({ targetId, initial, pickStyle });
+      setAsk({ targetId, initial, pickStyle, autoStyle });
       setSelected(null);
     },
     [editor],
@@ -623,6 +653,14 @@ export function SelectionMenu({ editor, source }: { editor: Editor; source: Edit
         if (!now) return false;
         sendToPane(now);
         return true;
+      },
+      rewriteInMyStyle: () => {
+        const now = readSelection(editor);
+        if (!now?.canEdit) return 'no-selection';
+        const style = myStyleRef.current;
+        if (!style) return 'no-style';
+        openAsk(now, '', false, { styleId: style.styleId, name: style.name });
+        return 'started';
       },
     });
     return () => {
@@ -682,6 +720,26 @@ export function SelectionMenu({ editor, source }: { editor: Editor; source: Edit
           >
             {t('Rewrite in a style…')}
           </button>
+          {myStyle && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={!selected.canEdit}
+              aria-keyshortcuts={getCommand('ai.rewriteInMyStyle')?.shortcut}
+              title={
+                selected.canEdit
+                  ? t('Suggest this text rewritten in {name} ({shortcut})', {
+                    name: myStyle.name ?? myStyle.styleId,
+                    shortcut: getCommand('ai.rewriteInMyStyle')?.shortcut ?? 'Ctrl+Shift+Y',
+                  })
+                  : t('Select some text to change. Figures stay as they are.')
+              }
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => openAsk(selected, '', false, { styleId: myStyle.styleId, name: myStyle.name })}
+            >
+              {t('Rewrite in my style')}
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-sm"
@@ -717,6 +775,7 @@ export function SelectionMenu({ editor, source }: { editor: Editor; source: Edit
           anchor={askAnchor}
           initial={ask.initial}
           pickStyle={ask.pickStyle}
+          autoStyle={ask.autoStyle}
           onClose={closeAsk}
           onVersions={setVersions}
         />
@@ -729,7 +788,8 @@ export function SelectionMenu({ editor, source }: { editor: Editor; source: Edit
             targetId={ask.targetId}
             request={versions}
             onBack={() => {
-              setAsk({ ...ask, initial: versions.instruction });
+              // Back to the box to edit the request, not to start it again.
+              setAsk({ ...ask, initial: versions.instruction, autoStyle: undefined });
               setVersions(null);
             }}
             onClose={(finished) => {

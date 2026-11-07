@@ -172,8 +172,17 @@
 .style-search-current > span:first-child { font-weight: 600; }
 .style-search-empty { padding: 0.5rem; }
 .style-use-scope { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin-bottom: 0.5rem; }
-.style-rewrite-picker { margin-top: 0.375rem; width: min(24rem, 80vw); }
-
+.style-rewrite-picker { margin-top: 0.375rem; width: min(28rem, 80vw); }
+/* A style with "Set as project default" beside it. The button takes the hint's place on the
+   row under the pointer or the keyboard, so the names keep their room on the others. */
+.style-search-row { display: flex; align-items: center; gap: 0.25rem; }
+.style-search-row > .menu-item { flex: 1 1 auto; min-width: 0; }
+.style-search-set { flex: 0 0 auto; white-space: nowrap; display: none; }
+.style-search-row:hover .style-search-set,
+.style-search-row:has(.is-active) .style-search-set { display: inline-flex; }
+.style-search-row:has(.style-search-set):hover .menu-shortcut,
+.style-search-row:has(.style-search-set):has(.is-active) .menu-shortcut { display: none; }
+.style-search-default > span:first-child { font-weight: 600; }
 /* The status bar item takes clicks, handled in register.tsx. */
 [data-status='writing-style'] { cursor: pointer; }
 [data-status='writing-style']:hover { color: var(--text); text-decoration: underline; }

@@ -855,5 +855,19 @@
   "Text": "Texto",
   "This goes to {provider} when you ask.": "Esto se envía a {provider} cuando preguntes.",
   "About {count} in all.": "Unos {count} en total.",
-  "Working out what is sent…": "Calculando qué se envía…"
+  "Working out what is sent…": "Calculando qué se envía…",
+  "Rewrite the selection in my style": "Reescribir la selección en mi estilo",
+  "Choose a writing style first, for the project, book or scene.": "Elige primero un estilo de escritura para el proyecto, el libro o la escena.",
+  "Suggest this text rewritten in {name} ({shortcut})": "Sugerir este texto reescrito en {name} ({shortcut})",
+  "Rewrite in my style": "Reescribir en mi estilo",
+  "Writing style for this book": "Estilo de escritura de este libro",
+  "Same as the project": "Igual que el proyecto",
+  "Used for every scene in this book with no style of its own.": "Se usa en cada escena de este libro que no tiene estilo propio.",
+  "Scene style: {name}": "Estilo de la escena: {name}",
+  "Book style: {name}": "Estilo del libro: {name}",
+  "Project style: {name}": "Estilo del proyecto: {name}",
+  "Project default": "Predeterminado del proyecto",
+  "Set {name} as project default": "Usar {name} como predeterminado del proyecto",
+  "Set as project default (Alt+Enter)": "Usar como predeterminado del proyecto (Alt+Intro)",
+  "Set as project default": "Usar como predeterminado"
 }

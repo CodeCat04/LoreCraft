@@ -11,6 +11,7 @@ import { confirm, showDialog } from '../shell/dialogs';
 import { useLocale } from '../state/language';
 import { useNav } from '../state/nav';
 import { toast } from '../shell/toasts';
+import { BookStyleField } from '../writingStyles/BookStyleField';
 
 function BookForm({ book, close }: { book: Book; close: (changed: boolean) => void }) {
   useLocale();
@@ -66,6 +67,7 @@ function BookForm({ book, close }: { book: Book; close: (changed: boolean) => vo
           onChange={(e) => setTarget(e.target.value)}
         />
       </label>
+      <BookStyleField bookId={book.id} />
       <div className="dialog-actions book-settings-actions">
         <button
           type="button"

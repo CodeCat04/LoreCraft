@@ -19,6 +19,7 @@ import {
   openAskFor,
   pendingSuggestions,
   rejectChanges,
+  rewriteInMyStyleFor,
   sendSelectionToPane,
   stepChange,
   stopRunningActions,
@@ -113,6 +114,22 @@ function registerAiCommands() {
       run: () => {
         const entry = activeEditor();
         if (entry && !openAskFor(entry.editor)) toast(t('Select some text first.'));
+      },
+    },
+    {
+      id: 'ai.rewriteInMyStyle',
+      title: t('Rewrite the selection in my style'),
+      shortcut: 'Ctrl+Shift+Y',
+      menu: 'AI',
+      order: 20.5,
+      when: () => !!activeEditor(),
+      keywords: 'writing style default rewrite voice',
+      run: () => {
+        const entry = activeEditor();
+        if (!entry) return;
+        const result = rewriteInMyStyleFor(entry.editor);
+        if (result === 'no-selection') toast(t('Select some text first.'));
+        else if (result === 'no-style') toast(t('Choose a writing style first, for the project, book or scene.'));
       },
     },
     {

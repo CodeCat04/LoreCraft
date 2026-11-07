@@ -489,6 +489,10 @@ Its output has no dates or counters, because it sits in a cached prefix.
 - App settings hold custom styles and favorites (`writingStyles`), for every project.
 - Project meta holds `writingStyles.choices` and `writingStyles.guide`. A choice of a custom
   style also stores its name and prompt, so a project still works on a computer without it.
+- Project meta `writingStyles.recent` lists the last five styles used to rewrite, newest first.
+  "Rewrite in a style…" starts on the default (`resolveRewriteDefault`: scene, book, project),
+  then these. "Rewrite in my style" (Ctrl+Shift+Y) uses the default with no picker. Both still
+  give suggestions, never direct edits.
 - Project meta `styleGuide.text` is the project-level text as plain text, for the MCP server,
   which cannot call TypeScript. It is written only after a change the writer made, and only if
   it differs, so opening a project never marks it as changed.

@@ -101,6 +101,7 @@ describe('shortcuts', () => {
     registerEditor(editor, { kind: 'node', id: 'n1', title: 'Arrival' });
     try {
       expect(commandForShortcut('Ctrl+Shift+K')?.id).toBe('ai.ask');
+      expect(commandForShortcut('Ctrl+Shift+Y')?.id).toBe('ai.rewriteInMyStyle');
       expect(clashesNow()).toEqual([]);
     } finally {
       unregisterEditor(editor);
