@@ -370,7 +370,19 @@ async function buildAiFixture(page) {
 }
 
 // Local servers such as llama.cpp answer with whatever model is loaded, so the name is only a label.
-const REAL_MODEL = process.env.LORECRAFT_E2E_MODEL || 'local-model';
+/**
+ * The model the local server has loaded, asked of the server at run time, so no machine's
+ * model name is written into this file. LORECRAFT_E2E_MODEL overrides it.
+ */
+async function realModel() {
+  if (process.env.LORECRAFT_E2E_MODEL) return process.env.LORECRAFT_E2E_MODEL;
+  try {
+    const listing = await (await fetch(`${LOCAL}/models`)).json();
+    return listing?.data?.[0]?.id ?? 'local-model';
+  } catch {
+    return 'local-model';
+  }
+}
 
 async function useProfile(page, profile) {
   await rpc(page, 'settings.update', {
@@ -862,7 +874,7 @@ describe('AI checks with the real local model', () => {
     app = await launch(workspace);
     const { page } = app;
     await createProject(page, 'Real Model World');
-    await useProfile(page, { id: 'local', name: 'Local model', kind: 'openai-compatible', baseUrl: LOCAL, model: REAL_MODEL, isCloud: false });
+    await useProfile(page, { id: 'local', name: 'Local model', kind: 'openai-compatible', baseUrl: LOCAL, model: await realModel(), isCloud: false });
     const { scenes, pages, book } = await buildAiFixture(page);
 
     await openConsistency(page);
@@ -889,7 +901,7 @@ describe('AI checks with the real local model', () => {
     const innocent = ['Sela before', 'Sela after', 'The tower', 'Moonlight'].map((title) => scenes[title]);
     const falsePositives = ai.filter((f) => innocent.some((id) => cites(f, id)) || cites(f, pages.tower.id) || cites(f, pages.moon.id));
     const report = [
-      `AI check against ${REAL_MODEL}, ${seconds}s, book "${book.title}", ${record.sceneIds.length} scenes.`,
+      `AI check against ${await realModel()}, ${seconds}s, book "${book.title}", ${record.sceneIds.length} scenes.`,
       `Planted contradictions found: ${caught.length} of ${planted.length}.`,
       ...planted.map(([name, test]) => `  ${ai.some(test) ? 'FOUND ' : 'MISSED'} ${name}`),
       `Findings: ${ai.length}. On text that must not be flagged: ${falsePositives.length}.`,
@@ -926,7 +938,7 @@ describe('AI checks with the real local model', () => {
     app = await launch(workspace);
     const { page } = app;
     await createProject(page, 'Real Model Fixes');
-    await useProfile(page, { id: 'local', name: 'Local model', kind: 'openai-compatible', baseUrl: LOCAL, model: REAL_MODEL, isCloud: false });
+    await useProfile(page, { id: 'local', name: 'Local model', kind: 'openai-compatible', baseUrl: LOCAL, model: await realModel(), isCloud: false });
     const { scenes, pages } = await buildAiFixture(page);
     await openConsistency(page);
     await selectScene(page, 'Market day');
