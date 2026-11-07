@@ -442,6 +442,99 @@ describe('writing styles with the AI', () => {
     assert.doesNotMatch(requests.at(-1), /Write in the manner of Dan Brown/, 'the rewrite style beats the scene style');
   });
 
+  it('rewrites in the default style at once, and remembers recent styles', async () => {
+    const { page, scene } = await start();
+    await rpc(page, 'nodes.update', { id: scene.id, patch: { content: makeDoc(textBlock('The dragon sleeps [mock:say=The wyvern sleeps now.] now.')) } });
+    await page.reload();
+    await page.locator('.topbar').waitFor();
+    await page.getByRole('button', { name: 'Write', exact: true }).click();
+    await page.locator('.prose-manuscript').waitFor();
+    const selectAll = async () => {
+      await page.locator('.prose-manuscript').click();
+      await page.keyboard.press('Control+a');
+      await page.getByRole('button', { name: 'Rewrite in a style…' }).waitFor();
+    };
+
+    // With no style anywhere, there is no "Rewrite in my style", and the picker starts plain.
+    await selectAll();
+    assert.equal(await page.getByRole('button', { name: 'Rewrite in my style' }).count(), 0);
+    await page.getByRole('button', { name: 'Rewrite in a style…' }).click();
+    const picker = page.getByRole('combobox', { name: 'Rewrite in which style?' });
+    await picker.waitFor();
+    await page.getByRole('listbox', { name: 'Styles' }).getByRole('option').first().waitFor();
+    assert.equal(await page.getByRole('option', { name: /^(Project|Book|Scene) style:/ }).count(), 0);
+
+    // Set the project default from the picker itself.
+    await picker.fill('Tolkien');
+    await page.getByRole('button', { name: 'Set J.R.R. Tolkien as project default' }).click();
+    await waitForStatus(page, 'Style: J.R.R. Tolkien');
+    const choices = JSON.parse(await rpc(page, 'project.getMeta', { key: 'writingStyles.choices' }));
+    assert.equal(choices.project.styleId, 'j-r-r-tolkien');
+    await app.screenshot('styles-rewrite-picker-dark');
+    await picker.press('Escape');
+    await page.getByRole('dialog', { name: 'Ask AI about the selected text' }).getByRole('button', { name: 'Cancel', exact: true }).click();
+
+    // "Rewrite in my style" goes straight to suggestions, with no picker.
+    await selectAll();
+    await page.getByRole('button', { name: 'Rewrite in my style' }).click();
+    await page.getByRole('region', { name: 'Suggested changes' }).waitFor({ timeout: 30_000 });
+    await waitUntil(async () => (await page.locator('.ai-ins, .ai-del').count()) > 0, 5000, 'tracked changes to show');
+    assert.equal(await picker.count(), 0, 'no picker was shown');
+    let requests = await chatRequests();
+    assert.match(requests.at(-1), /<writing_style>/);
+    assert.match(requests.at(-1), /Write in the manner of J\.R\.R\. Tolkien/);
+    assert.match(requests.at(-1), /writing style you were given \(J\.R\.R\. Tolkien\)/);
+    let stored = await rpc(page, 'nodes.get', { id: scene.id });
+    assert.match(JSON.stringify(stored.content), /The dragon sleeps/, 'the document itself has not changed');
+    await page.getByRole('button', { name: 'Reject all' }).click();
+    await waitUntil(async () => (await page.locator('.ai-ins, .ai-del').count()) === 0, 5000, 'the suggestions to go');
+
+    // A book's style comes before the project's, and opens the picker chosen, so Enter uses it.
+    await page.getByRole('button', { name: 'Book settings', exact: true }).click();
+    await page.getByRole('button', { name: /^Writing style for this book:/ }).click();
+    const bookSearch = page.getByRole('combobox', { name: 'Writing style for this book' });
+    await bookSearch.fill('Austen');
+    await bookSearch.press('Enter');
+    await page.getByRole('button', { name: 'Writing style for this book: Jane Austen' }).waitFor();
+    await app.screenshot('styles-book-settings-dark');
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await waitUntil(async () => {
+      const now = JSON.parse((await rpc(page, 'project.getMeta', { key: 'writingStyles.choices' })) ?? '{}');
+      return Object.values(now.books ?? {}).some((c) => c.styleId === 'jane-austen');
+    }, 3000, 'the book choice to be stored');
+
+    await selectAll();
+    await page.getByRole('button', { name: 'Rewrite in a style…' }).click();
+    await picker.waitFor();
+    const top = page.getByRole('option', { name: /^Book style: Jane Austen/ });
+    await top.waitFor();
+    assert.equal(await top.getAttribute('aria-selected'), 'true');
+    // The recently used style comes next, ahead of the alphabetical list. It is also the
+    // project's default, and says so.
+    const second = page.getByRole('listbox', { name: 'Styles' }).getByRole('option').nth(1);
+    assert.match(await second.innerText(), /J\.R\.R\. Tolkien/);
+    assert.match(await second.innerText(), /Project default/);
+    await app.screenshot('styles-rewrite-default-dark');
+    await picker.press('Enter');
+    await page.getByRole('region', { name: 'Suggested changes' }).waitFor({ timeout: 30_000 });
+    requests = await chatRequests();
+    assert.match(requests.at(-1), /Write in the manner of Jane Austen/);
+    assert.deepEqual(JSON.parse(await rpc(page, 'project.getMeta', { key: 'writingStyles.recent' })), ['jane-austen', 'j-r-r-tolkien']);
+    await page.getByRole('button', { name: 'Reject all' }).click();
+    await waitUntil(async () => (await page.locator('.ai-ins, .ai-del').count()) === 0, 5000, 'the suggestions to go');
+
+    // The shortcut does the same as the menu item.
+    const before = (await chatRequests()).length;
+    await selectAll();
+    await page.keyboard.press('Control+Shift+Y');
+    await page.getByRole('region', { name: 'Suggested changes' }).waitFor({ timeout: 30_000 });
+    requests = await chatRequests();
+    assert.ok(requests.length > before, 'the shortcut sent a request');
+    assert.match(requests.at(-1), /Write in the manner of Jane Austen/);
+    stored = await rpc(page, 'nodes.get', { id: scene.id });
+    assert.match(JSON.stringify(stored.content), /The dragon sleeps/, 'still only suggestions');
+  });
+
   it('drafts a style from chosen scenes, for review before saving', async () => {
     const { page, scene } = await start();
     const draft = JSON.stringify({

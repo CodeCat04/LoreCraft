@@ -12,7 +12,7 @@ export function editorAiExtensions(source: EditorSource): Extensions {
   return [AiSuggestions.configure({ source })];
 }
 
-export { SelectionMenu, openAskFor, sendSelectionToPane } from './SelectionMenu';
+export { SelectionMenu, openAskFor, rewriteInMyStyleFor, sendSelectionToPane } from './SelectionMenu';
 export { activeEditor, editorFor, waitForEditor, type EditorEntry } from './registry';
 export {
   acceptChanges,

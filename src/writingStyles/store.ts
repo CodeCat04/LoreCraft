@@ -11,11 +11,14 @@ import { useSettings } from '../state/settings';
 import { hasGuide } from './guide';
 import { LIBRARY, builtInStyle, compareStyles } from './library';
 import { buildStylePrompt } from './prompt';
+import { parseRecent, pushRecent, rewriteDefault } from './defaults';
 import { composeInstructions, pickStyle, type EffectiveStyle, type StyleInstructions, type StyleRequest } from './resolve';
 import type { CustomStyle, StoredChoices, StoredGuide, StoredStyleChoice, StyleGuide, StyleScope, WritingStyle } from './types';
 
 const CHOICES_KEY = 'writingStyles.choices';
 const GUIDE_KEY = 'writingStyles.guide';
+/** The styles last used to rewrite in this project, newest first. */
+const RECENT_KEY = 'writingStyles.recent';
 /** A plain-text copy for the MCP server, which is written in Rust and cannot call this code. */
 export const RESOLVED_TEXT_KEY = 'styleGuide.text';
 
@@ -195,6 +198,31 @@ async function refreshProjectCopies(style: CustomStyle): Promise<void> {
 /** The style that applies to this request, and the level it was chosen at. */
 export async function resolveEffectiveStyle(request: StyleRequest = {}): Promise<EffectiveStyle | null> {
   return pickStyle(await loadChoices(), { ...request, bookId: await bookIdFor(request) }, getStyle);
+}
+
+/** What "Rewrite in a style…" uses unless the writer picks another: scene, book, project. */
+export async function resolveRewriteDefault(request: { bookId?: string | null; nodeId?: string | null } = {}): Promise<EffectiveStyle | null> {
+  if (!hasProject()) return null;
+  const [choices, bookId] = await Promise.all([loadChoices(), bookIdFor(request)]);
+  return rewriteDefault(choices, { nodeId: request.nodeId, bookId }, getStyle);
+}
+
+// ---------------------------------------------------------------------------
+// Recently used for rewriting, per project
+// ---------------------------------------------------------------------------
+
+export async function loadRecentStyles(): Promise<string[]> {
+  return hasProject() ? parseRecent(await api.project.getMeta(RECENT_KEY)) : [];
+}
+
+/** Puts a style first in this project's recent list. Writes only if the list changes. */
+export async function recordRecentStyle(styleId: string): Promise<void> {
+  if (!hasProject()) return;
+  await inOrder(async () => {
+    const current = await loadRecentStyles();
+    const next = pushRecent(current, styleId);
+    if (JSON.stringify(next) !== JSON.stringify(current)) await api.project.setMeta(RECENT_KEY, JSON.stringify(next));
+  });
 }
 
 // ---------------------------------------------------------------------------

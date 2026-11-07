@@ -16,6 +16,10 @@
  *       The one place a style turns into text for the AI.
  *   StylePicker
  *       A searchable dropdown of every style, for embedding.
+ *   resolveRewriteDefault({ bookId?, nodeId? }), useRewriteDefault(nodeId)
+ *       The style "Rewrite in a style…" starts on: the scene's, the book's, the project's.
+ *   loadRecentStyles(), recordRecentStyle(id)
+ *       The last five styles used to rewrite, per project.
  */
 
 import '../styles/writingStyles.css';
@@ -27,5 +31,7 @@ export { blendStyles, buildStylePrompt } from './prompt';
 export { StylePicker } from './StylePicker';
 export { StylesView } from './StylesView';
 export { openStylesPage, registerWritingStyles } from './register';
-export { RewriteInStylePicker, rewriteInstruction } from './rewrite';
+export { RewriteInStylePicker, rewriteInstruction, setProjectDefault, useRewriteDefault } from './rewrite';
+export { loadRecentStyles, recordRecentStyle, resolveRewriteDefault } from './store';
+export { BookStyleField } from './BookStyleField';
 export type { BlendPart, BlendWeight, CustomStyle, StyleGuide, StyleScope, WritingStyle } from './types';
