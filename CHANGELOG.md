@@ -2,6 +2,29 @@
 
 What changed in each release. Versions follow [semantic versioning](https://semver.org/), and the newest is at the top. The notes for a release are also what the app shows under Help > "Check for updates".
 
+## 0.3.0
+
+Drafting help: the AI can now write with you, not only edit. Everything works with a local model, respects "local only" and your spending limit, and arrives as tracked changes for you to accept or reject.
+
+- **Write as a scene.** Select rough notes, such as stream of consciousness, beats or bullet points, and press **Write as a scene** (`Ctrl+Shift+E`). It becomes finished prose, using the scene's point of view, cast, location, your lore and your default style. Choose short, medium or long.
+- **Draft from synopsis and First draft.** From the AI menu, write a scene from its synopsis, or start an empty scene from a few lines of premise. Long drafts on a local model are written in parts.
+- **Point of view and tense.** Set them for a book in Book settings. Every AI request that writes prose follows them, and a scene's own point-of-view character still applies.
+- **Guided Continue.** "Continue writing" takes an optional note on what should happen next. Ask for 2 or 3 versions and insert the one you like.
+- **Describe with the senses.** Select a moment to get short options for sight, sound, smell, touch, taste and metaphor, drawn from your lore. Tick the ones you want and insert them.
+- **Brainstorm.** A board of ideas (names, places, plot twists, conflicts, world details and more) that reads your wiki and book, so the ideas fit your world. Keep an idea to the Inbox, make it a page, discard it, or ask for more like it. Open it from the AI menu or `Ctrl+K`.
+- **Plan a story.** A step-by-step wizard (Insert › Plan a story…): braindump, synopsis, characters, world, structure, outline and review. The AI suggests at each step, or you can turn it off and fill in everything yourself. Nothing is created until you press Create, and your progress is saved.
+- **Story structures.** Three acts, the hero's journey, a story circle, seven points, a beat sheet, a romance arc and a mystery. Use them in the wizard, or apply one to an existing book's Outline or Corkboard. Applying a structure only adds chapters, and you review them first.
+- **Outside AI can write in your book.** Claude Code, OpenCode and other MCP tools can now:
+  - add text to a scene, even an empty one;
+  - rewrite a passage between two anchors, or a whole scene;
+  - suggest new scenes and chapters;
+  - change a scene's synopsis, point of view, cast and other details.
+
+  Quotes match even with different dashes, ellipses or quote marks. **Review in the scene** lays out a big rewrite as tracked changes, so you accept or reject it paragraph by paragraph. See docs/MCP.md, "Writing with an outside AI".
+- **Share prompts as files.** Export one or all of your custom prompts, and import them on another computer, with a preview before anything is added.
+
+The file format hasn't changed, so 0.3.0 projects still open in 0.2.0. 0.2.0 doesn't understand the new kinds of outside suggestions, though. Before opening a project in an older copy, accept or reject any that are waiting.
+
 ## 0.2.0
 
 Changes from real use, to make everyday writing faster.
