@@ -30,3 +30,43 @@ A style can already be set for a project or book (`choices.project.styleId`, src
 - [x] Optionally keep earlier versions as "1 of 2" arrows instead of deleting them.
 - [x] It works with local and cloud providers alike. The cloud permission and spending-limit checks apply to reruns too.
 - Code: src/ai/AiPane.tsx, src/ai/store.ts (there's already a `retry`, used only after errors).
+
+---
+
+# Round 2: drafting help
+
+Ideas from comparing LoreCraft with other AI writing tools. Everything uses the same AI as the rest of the app (local or cloud). It respects "local only" and the spending limit, and nothing changes the writer's text without review.
+
+## 5. Write a scene from notes, a synopsis or a premise
+- [ ] Select rough notes (stream of consciousness, beats or bullet points) and choose **Write this as a scene**. The AI turns them into finished prose using the scene's point of view, cast, location, the lore it mentions and the default style. The result arrives as a tracked change for the selection.
+- [ ] **Draft from synopsis** in a scene's AI menu, for a scene that has a synopsis but little or no text. It writes the scene from the synopsis, cast, location and the scenes around it.
+- [ ] **First draft** in an empty scene: type a premise or a few lines of what should happen, and get a draft of a chosen length.
+- [ ] It works with small local models: short prompts, a length choice, and long scenes written in parts if needed.
+- Code: src/editor/ai/, src/ai/context.ts, src/ai/prompts.ts, src/write/.
+
+## 6. Point of view and tense for the book
+- [ ] Book settings gets **Point of view** (first, close third, omniscient, second, and so on) and **Tense** (past or present), beside the default style.
+- [ ] Every AI request that writes prose for that book follows them. A scene's own point-of-view character still applies.
+- [ ] Older projects keep working; empty means "not set".
+
+## 7. Guided Continue
+- [ ] **Continue** can take an instruction ("she finds the letter; end on a cliffhanger") or run with none.
+- [ ] Choose between 2 or 3 versions before anything is inserted, and insert the one you pick as a tracked change.
+
+## 8. Describe with the senses
+- [ ] Select a moment and choose **Describe**. You get short options under Sight, Sound, Smell, Touch, Taste and Metaphor.
+- [ ] Tick the ones you like and insert them, or ask for more. Insertions are tracked changes. It uses the lore: what a place smells like, what a character wears.
+
+## 9. Brainstorm board
+- [ ] A Brainstorm view (AI menu and Ctrl+K) with categories: character names, place names, plot twists, what happens next, conflicts, world details, titles, objects, dialogue lines, character traits, and your own question.
+- [ ] Unlike other tools, it reads the wiki and the book, so its ideas fit the world.
+- [ ] Each idea can be kept or discarded, and "more like this" asks for more. Kept ideas go to the Inbox or straight to a new page.
+
+## 10. Story planning wizard
+- [ ] A step-by-step **Plan a story** wizard: Braindump, then Synopsis, Characters, World, Outline and Scenes. The AI suggests at each step, and you edit, skip or go back.
+- [ ] At the end, it creates the wiki pages (characters, places) and the book's chapters and scenes with synopses. You review everything first; nothing is created silently.
+- [ ] Story structure templates to start from: three-act, the hero's journey, a story circle, a beat sheet, a romance arc, a mystery. They're also available on their own for the outline and corkboard of an existing book.
+- [ ] Progress is saved, so the wizard can be left and resumed.
+
+## 11. Share prompts as files
+- [ ] Export one or all custom prompts from the prompt library to a file, and import prompts from a file (with a preview, and no duplicates).
