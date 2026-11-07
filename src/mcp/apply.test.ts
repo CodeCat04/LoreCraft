@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { getSchema } from '@tiptap/core';
 import { Node as ProseNode } from '@tiptap/pm/model';
 
-import { applyEdit, findQuote, normalizeQuote } from './apply';
+import { applyEdit, applyTextProposal, findQuote, normalizeQuote, planTextProposal } from './apply';
+import type { InsertPayload, RewritePayload, TextProposal } from './api';
+import quoteCases from './quote-cases.json';
 import { documentExtensions } from '../editor/schema';
 import { pmToPlainText } from '../editor/convert';
 import type { PmNode } from '../lib/types';
@@ -150,5 +152,103 @@ describe('applyEdit', () => {
     const nodes = after.content?.[0].content ?? [];
     expect(nodes.some((n) => n.type === 'hardBreak')).toBe(true);
     expect(pmToPlainText(after)).toBe('Line one\nline 2.');
+  });
+});
+
+describe('matching agrees with the server', () => {
+  const pm = (content: PmNode) => ProseNode.fromJSON(schema, content);
+
+  // The same file is checked by `quote_cases_agree_with_the_app` in text.rs.
+  it.each(quoteCases as [string, string][])('normalizes %j', (input, expected) => {
+    expect(normalizeQuote(input)).toBe(expected);
+  });
+
+  it('finds what the server found, in the document as stored', () => {
+    for (const [input] of quoteCases as [string, string][]) {
+      if (!normalizeQuote(input) || normalizeQuote(input) === '-') continue;
+      // Each case as document text, quoted the way a model might type it.
+      expect(findQuote(pm(doc(para(text(`Start. ${input} End.`)))), normalizeQuote(input)), input).toHaveProperty('from');
+    }
+  });
+
+  it('forgives dashes, ellipses, spaces and emphasis, but never guesses', () => {
+    const d = pm(doc(para(text('She waited — then ran… The gate held.'))));
+    expect(findQuote(d, 'waited -- then ran... The gate held')).toHaveProperty('from');
+    expect(findQuote(d, 'waited - then *ran*')).toHaveProperty('from');
+    expect(findQuote(pm(doc(para(text('2*3 is six')))), '23 is six')).toEqual({ problem: 'missing' });
+    expect(findQuote(pm(doc(para(text('Go — go — go.')))), 'go')).toEqual({ problem: 'repeated' });
+  });
+});
+
+describe('longer writing', () => {
+  const scene = doc(
+    para(text('Rain fell on the old gate.')),
+    para(text('Aria waited by the river until dusk.')),
+    para(text('Bren came late, as always.')),
+    para(text('Night fell.')),
+  );
+  const base = { id: 'p', client: 'c', title: 'Scene', status: 'pending', createdAt: '', targetKind: 'node' as const, targetId: 'n' };
+  const rewrite = (payload: RewritePayload): TextProposal => ({ ...base, kind: 'rewrite', payload });
+  const insert = (payload: InsertPayload): TextProposal => ({ ...base, kind: 'insert', payload });
+  const done = (content: PmNode, proposal: TextProposal) => {
+    const result = applyTextProposal(content, proposal);
+    if ('stale' in result) throw new Error(result.stale);
+    return pmToPlainText(result.doc);
+  };
+
+  it('rewrites a range between two anchors, both included', () => {
+    const proposal = rewrite({ mode: 'range', fromQuote: 'Aria waited', toQuote: 'as always.', replacement: 'Aria left.\n\nBren never came.\n\nThe river rose.' });
+    expect(done(scene, proposal)).toBe('Rain fell on the old gate.\n\nAria left.\n\nBren never came.\n\nThe river rose.\n\nNight fell.');
+  });
+
+  it('gives one change per paragraph to review', () => {
+    const proposal = rewrite({ mode: 'range', fromQuote: 'Rain fell', toQuote: 'Night fell.', replacement: 'Snow fell on the old gate.\n\nAria waited by the river until dusk.\n\nBren came early, as always.\n\nNight fell.' });
+    const planned = planTextProposal(ProseNode.fromJSON(schema, scene), proposal, true);
+    expect('hunks' in planned && planned.hunks.length).toBe(2);
+  });
+
+  it('finds the anchors again after the text moved, and refuses when they are gone', () => {
+    const moved = doc(para(text('A new first line.')), ...(scene.content ?? []));
+    const proposal = rewrite({ mode: 'range', fromQuote: 'Aria waited', toQuote: 'until dusk.', replacement: 'Aria slept.' });
+    expect(done(moved, proposal)).toContain('A new first line.\n\nRain fell on the old gate.\n\nAria slept.\n\nBren');
+    const gone = applyTextProposal(doc(para(text('Something else.'))), proposal);
+    expect((gone as { stale: string }).stale).toContain('no longer there');
+    const backwards = applyTextProposal(scene, rewrite({ mode: 'range', fromQuote: 'Bren came', toQuote: 'old gate.', replacement: 'x' }));
+    expect(backwards).toHaveProperty('stale');
+  });
+
+  it('replaces a whole scene, unless it changed since', () => {
+    const original = pmToPlainText(scene);
+    expect(done(scene, rewrite({ mode: 'whole', replacement: 'All new.\n\nEvery word.', original }))).toBe('All new.\n\nEvery word.');
+    const edited = doc(para(text('The writer changed this.')));
+    const refused = applyTextProposal(edited, rewrite({ mode: 'whole', replacement: 'All new.', original }));
+    expect((refused as { stale: string }).stale).toContain('has changed');
+    // Reviewed in the scene, the same suggestion is shown against what is there now.
+    expect(planTextProposal(ProseNode.fromJSON(schema, edited), rewrite({ mode: 'whole', replacement: 'All new.', original }), false)).toHaveProperty('hunks');
+  });
+
+  it('inserts at the start, the end, and beside a quote', () => {
+    expect(done(scene, insert({ at: 'start', text: 'Prologue.' }))).toMatch(/^Prologue\.\n\nRain fell/);
+    expect(done(scene, insert({ at: 'end', text: 'Dawn.\n\nThe end.' }))).toMatch(/Night fell\.\n\nDawn\.\n\nThe end\.$/);
+    expect(done(scene, insert({ at: 'after', quote: 'until dusk.', text: 'She was cold.' }))).toContain('until dusk.\n\nShe was cold.\n\nBren');
+    expect(done(scene, insert({ at: 'before', quote: 'Bren came', text: 'Then:' }))).toContain('dusk.\n\nThen:\n\nBren came');
+    // Inside a paragraph, the words join it, with a space.
+    expect(done(scene, insert({ at: 'after', quote: 'Bren came late,', text: 'very late,' }))).toContain('Bren came late, very late, as always.');
+    expect(applyTextProposal(scene, insert({ at: 'after', quote: 'no such words', text: 'x' }))).toHaveProperty('stale');
+  });
+
+  it('writes into an empty scene', () => {
+    const empty = doc({ type: 'paragraph' });
+    expect(done(empty, insert({ at: 'start', text: 'It begins.\n\nIt goes on.' }))).toBe('It begins.\n\nIt goes on.');
+    expect(done(empty, insert({ at: 'end', text: 'Only line.' }))).toBe('Only line.');
+    expect(done(empty, rewrite({ mode: 'whole', replacement: 'Fresh.', original: '' }))).toBe('Fresh.');
+  });
+
+  it('keeps a figure through a whole rewrite', () => {
+    const fig = stored(figure('The gate'));
+    const withFigure = doc(para(text('Before.')), fig, para(text('After.')));
+    const result = applyTextProposal(withFigure, rewrite({ mode: 'whole', replacement: 'All new.', original: pmToPlainText(withFigure) }));
+    if ('stale' in result) throw new Error(result.stale);
+    expect(result.doc.content?.some((n) => n.type === 'figure')).toBe(true);
   });
 });

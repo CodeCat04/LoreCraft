@@ -162,7 +162,7 @@ pub fn definitions() -> Vec<ToolDef> {
         ),
         suggest_tool(
             "propose_edit",
-            "Suggest replacing part of a wiki page or scene. Nothing changes until the writer accepts it in the app, under Outside suggestions, so ask for what you think is right. Quote the existing text exactly as get_page or get_scene shows it, with enough words to be unique. The replacement can use Markdown such as *italic* and [[Page title]] links. Figures cannot be changed. Needs LoreCraft to be open with this project.",
+            "Suggest replacing a short part of a wiki page or scene. Nothing changes until the writer accepts it in the app, under Outside suggestions, so ask for what you think is right. Quote the existing text as get_page or get_scene shows it, with enough words to be unique. Curly quotes, dashes and line breaks need not match. The replacement can use Markdown such as *italic* and [[Page title]] links. Figures cannot be changed. For many paragraphs, use propose_rewrite. Needs LoreCraft to be open with this project.",
             json!({ "type": "object", "properties": {
                 "target": { "type": "string", "enum": ["page", "scene"], "description": "What to change." },
                 "id": { "type": "string", "description": "The page or scene id. Used instead of the title." },
@@ -171,6 +171,84 @@ pub fn definitions() -> Vec<ToolDef> {
                 "replacement": { "type": "string", "description": "The new text. Empty removes the quoted text." },
                 "reason": { "type": "string", "description": "A short note to the writer saying why." },
             }, "required": ["target", "quote", "replacement"] }),
+        ),
+        suggest_tool(
+            "propose_rewrite",
+            "Suggest rewriting a long stretch of a scene, or the whole scene. Give from_quote and to_quote: a few unique words where the stretch starts and where it ends, both included. Or give whole: true to replace the entire scene. The replacement is Markdown; a blank line starts a new paragraph. The writer can review it paragraph by paragraph. Figures stay where they are. Needs LoreCraft to be open with this project.",
+            json!({ "type": "object", "properties": {
+                "id": { "type": "string", "description": "The scene id, from get_outline. Used instead of the title." },
+                "title": { "type": "string", "description": "The scene title." },
+                "target": { "type": "string", "enum": ["scene", "page"], "description": "Default scene." },
+                "from_quote": { "type": "string", "description": "The first words of the stretch, copied exactly. Must be unique." },
+                "to_quote": { "type": "string", "description": "The last words of the stretch, copied exactly. Must be unique after from_quote." },
+                "whole": { "type": "boolean", "description": "True to replace the whole scene. No quotes needed." },
+                "replacement": { "type": "string", "description": "The new text, as Markdown." },
+                "reason": { "type": "string", "description": "A short note to the writer saying why." },
+            }, "required": ["replacement"] }),
+        ),
+        suggest_tool(
+            "propose_insert",
+            "Suggest adding new text to a scene: at the start or end, or right after or before a quote. Works on an empty scene. The text is Markdown; a blank line starts a new paragraph. If the quote ends a paragraph, the text comes as new paragraphs after it. Needs LoreCraft to be open with this project.",
+            json!({ "type": "object", "properties": {
+                "id": { "type": "string", "description": "The scene id, from get_outline. Used instead of the title." },
+                "title": { "type": "string", "description": "The scene title." },
+                "target": { "type": "string", "enum": ["scene", "page"], "description": "Default scene." },
+                "at": { "type": "string", "enum": ["start", "end"], "description": "Add at the start or the end." },
+                "after_quote": { "type": "string", "description": "Add right after these words, copied exactly." },
+                "before_quote": { "type": "string", "description": "Add right before these words, copied exactly." },
+                "text": { "type": "string", "description": "The new text, as Markdown." },
+                "reason": { "type": "string", "description": "A short note to the writer saying why." },
+            }, "required": ["text"] }),
+        ),
+        suggest_tool(
+            "propose_new_scene",
+            "Suggest a new scene, with its text. It goes after the scene you name, or at the end of a chapter, or at the end of the book. Pages for pov, location and cast are named by title. Nothing is created until the writer accepts it. Needs LoreCraft to be open with this project.",
+            json!({ "type": "object", "properties": {
+                "title": { "type": "string", "description": "The new scene's title." },
+                "after": { "type": "string", "description": "A scene id or title to put it after." },
+                "chapter": { "type": "string", "description": "A chapter id or title. Without after, the scene goes at its end." },
+                "book": { "type": "string", "description": "A book title or id. Without after or chapter, it goes in the book's last chapter." },
+                "text": { "type": "string", "description": "The scene text, as Markdown. A blank line starts a new paragraph." },
+                "synopsis": { "type": "string", "description": "One or two sentences." },
+                "pov": { "type": "string", "description": "The point-of-view character's page title." },
+                "location": { "type": "string", "description": "The place's page title." },
+                "cast": { "type": "array", "items": { "type": "string" }, "description": "Page titles of the characters in it." },
+                "reason": { "type": "string", "description": "A short note to the writer saying why." },
+            }, "required": ["title"] }),
+        ),
+        suggest_tool(
+            "propose_new_chapter",
+            "Suggest a new chapter with its first scene. It goes after the chapter you name, or at the end of the book. text is the first scene's text. Nothing is created until the writer accepts it. Needs LoreCraft to be open with this project.",
+            json!({ "type": "object", "properties": {
+                "title": { "type": "string", "description": "The new chapter's title." },
+                "after": { "type": "string", "description": "A chapter id or title to put it after." },
+                "book": { "type": "string", "description": "A book title or id. Without after, it goes at the book's end." },
+                "synopsis": { "type": "string", "description": "The chapter's synopsis." },
+                "scene_title": { "type": "string", "description": "The first scene's title. Default the chapter title." },
+                "scene_synopsis": { "type": "string", "description": "The first scene's synopsis." },
+                "text": { "type": "string", "description": "The first scene's text, as Markdown." },
+                "pov": { "type": "string", "description": "The first scene's point-of-view page title." },
+                "location": { "type": "string", "description": "The first scene's place page title." },
+                "cast": { "type": "array", "items": { "type": "string" }, "description": "Page titles of the characters in the first scene." },
+                "reason": { "type": "string", "description": "A short note to the writer saying why." },
+            }, "required": ["title"] }),
+        ),
+        suggest_tool(
+            "propose_scene_details",
+            "Suggest changes to a scene's details: title, synopsis, point of view, location, cast, status, story date or notes. Give only the fields to change. An empty pov or location clears it. cast replaces the whole list. Needs LoreCraft to be open with this project.",
+            json!({ "type": "object", "properties": {
+                "id": { "type": "string", "description": "The scene id. Used instead of the title." },
+                "title": { "type": "string", "description": "The scene title, to find it." },
+                "new_title": { "type": "string", "description": "A new title for the scene." },
+                "synopsis": { "type": "string" },
+                "pov": { "type": "string", "description": "A page title." },
+                "location": { "type": "string", "description": "A page title." },
+                "cast": { "type": "array", "items": { "type": "string" }, "description": "Page titles." },
+                "status": { "type": "string", "enum": ["idea", "outline", "draft", "revised", "final"] },
+                "story_date": { "type": "string", "description": "The in-world date, as free text." },
+                "notes": { "type": "string", "description": "The scene's notes. Replaces them." },
+                "reason": { "type": "string", "description": "A short note to the writer saying why." },
+            }}),
         ),
         suggest_tool(
             "add_idea",
@@ -986,7 +1064,7 @@ fn get_outline(ctx: &Ctx, args: &Value) -> AppResult<String> {
 
 /// Finds a part, chapter or scene by id or exact title. Titles can repeat, so several
 /// matches are listed rather than guessed between.
-fn resolve_node(ctx: &Ctx, args: &Value, kinds: &[&str]) -> AppResult<manuscript::Node> {
+pub(crate) fn resolve_node(ctx: &Ctx, args: &Value, kinds: &[&str]) -> AppResult<manuscript::Node> {
     let noun = kinds[0];
     if let Some(id) = arg_str(args, "id") {
         let node = manuscript::get_node(ctx.conn, id)
@@ -1516,7 +1594,7 @@ fn catch_me_up(ctx: &Ctx, args: &Value) -> AppResult<String> {
     }
 
     let mut left_out: Vec<String> = Vec::new();
-    let tail = "\n## Reading more\nget_outline gives every scene id. get_scene and get_chapter read the book. get_page reads a wiki page by title, list_pages shows what exists, and search_lore finds where something is mentioned. get_timeline, get_relationships and list_findings cover dates, family and allies, and known contradictions. propose_edit and propose_new_page suggest changes for the writer to accept in the app. Nothing you do changes a document directly.\n";
+    let tail = "\n## Reading more\nget_outline gives every scene id. get_scene and get_chapter read the book. get_page reads a wiki page by title, list_pages shows what exists, and search_lore finds where something is mentioned. get_timeline, get_relationships and list_findings cover dates, family and allies, and known contradictions. propose_edit, propose_rewrite and propose_insert suggest changes to a scene's text, propose_new_scene and propose_new_chapter suggest new writing, and propose_new_page a new page. The writer accepts each in the app. Nothing you do changes a document directly.\n";
     // Room for the tail and a list of what was left out.
     let reserve = tail.len() + 400;
     let room = limit.saturating_sub(head.len() + reserve);

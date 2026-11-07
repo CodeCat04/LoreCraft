@@ -12,11 +12,22 @@ import { Mark, Node as ProseNode, type Schema } from '@tiptap/pm/model';
 import { Transform } from '@tiptap/pm/transform';
 import { diffChars, diffWordsWithSpace } from 'diff';
 
-import { applyHunks, computeHunks, FigureSafetyError, isProtected, keptNodesIntact, planRewrite } from '../editor/ai/hunks';
-import { markdownToPm } from '../editor/convert';
+import {
+  applyHunks,
+  computeHunks,
+  computeInsertion,
+  FigureSafetyError,
+  isProtected,
+  keptNodesIntact,
+  planRewrite,
+  planToMarkdown,
+  type Hunk,
+} from '../editor/ai/hunks';
+import { markdownToPm, pmToPlainText } from '../editor/convert';
 import { documentExtensions } from '../editor/schema';
 import { t } from '../lib/i18n';
 import type { PmNode } from '../lib/types';
+import type { InsertPayload, TextProposal } from './api';
 
 let cached: Schema | null = null;
 function schema(): Schema {
@@ -36,23 +47,58 @@ function straighten(c: string): string {
   return c;
 }
 
+const INVISIBLE = new Set(['​', '‌', '‍', '⁠', '﻿']);
+const DASHES = new Set(['-', '‐', '‑', '‒', '–', '—', '―', '−']);
+
+/** Rust's `char::is_whitespace`, which also counts U+0085. */
+function isSpace(c: string): boolean {
+  return c === '\u0085' || /^\s$/u.test(c);
+}
+
+/** What one character reads as, apart from spaces and dashes. */
+function plainChars(c: string): string {
+  return c === '…' ? '...' : straighten(c);
+}
+
 /**
  * How a quote is compared with a document. Must match `normalize_quote` in
- * `src-tauri/src/mcp/text.rs`. Models often straighten curly quotes and rewrap lines.
+ * `src-tauri/src/mcp/text.rs`, and `quote-cases.json` holds cases both sides check.
+ * Models straighten curly quotes, rewrap lines, and type `--` or `...`. Every dash and run
+ * of dashes reads as one `-` with no space on either side, an ellipsis as three dots,
+ * invisible characters not at all, and any run of spaces as one.
  */
 export function normalizeQuote(text: string): string {
   let out = '';
   let space = false;
   for (const raw of text) {
-    if (/^\s$/u.test(raw)) {
+    if (INVISIBLE.has(raw)) continue;
+    if (isSpace(raw)) {
       space = true;
       continue;
     }
-    if (space && out) out += ' ';
+    if (DASHES.has(raw)) {
+      space = false;
+      if (!out.endsWith('-')) out += '-';
+      continue;
+    }
+    if (space && out && !out.endsWith('-')) out += ' ';
     space = false;
-    out += straighten(raw);
+    out += plainChars(raw);
   }
   return out;
+}
+
+/** Emphasis a model adds to a quote is dropped when the text has none, since it reads plain text. */
+export function needleFor(quote: string, haystack: string): string {
+  let needle = normalizeQuote(quote);
+  let stripped = false;
+  for (const mark of ['*', '_']) {
+    if (needle.includes(mark) && !haystack.includes(mark)) {
+      needle = needle.split(mark).join('');
+      stripped = true;
+    }
+  }
+  return stripped ? normalizeQuote(needle) : needle;
 }
 
 interface Stretch {
@@ -66,15 +112,28 @@ function newStretch(): Stretch {
   return { text: '', from: [], to: [] };
 }
 
+/** Adds one character as `normalizeQuote` would read it. */
 function pushChar(stretch: Stretch, c: string, from: number, to: number): void {
-  if (/^\s$/u.test(c)) {
-    if (stretch.text === '' || stretch.text.endsWith(' ')) return;
-    stretch.text += ' ';
+  if (INVISIBLE.has(c)) return;
+  const add = (ch: string) => {
+    stretch.text += ch;
+    stretch.from.push(from);
+    stretch.to.push(to);
+  };
+  if (isSpace(c)) {
+    if (stretch.text === '' || stretch.text.endsWith(' ') || stretch.text.endsWith('-')) return;
+    add(' ');
+  } else if (DASHES.has(c)) {
+    if (stretch.text.endsWith(' ')) {
+      stretch.text = stretch.text.slice(0, -1);
+      stretch.from.pop();
+      stretch.to.pop();
+    }
+    if (stretch.text.endsWith('-')) stretch.to[stretch.to.length - 1] = to;
+    else add('-');
   } else {
-    stretch.text += straighten(c);
+    for (const ch of plainChars(c)) add(ch);
   }
-  stretch.from.push(from);
-  stretch.to.push(to);
 }
 
 function collectStretches(doc: ProseNode): Stretch[] {
@@ -124,20 +183,39 @@ function collectStretches(doc: ProseNode): Stretch[] {
 
 export type QuoteMatch = { from: number; to: number } | { problem: 'missing' | 'repeated' };
 
-/** Where a quote is in a document, in document positions. */
-export function findQuote(doc: ProseNode, quote: string): QuoteMatch {
-  const needle = normalizeQuote(quote);
-  if (!needle) return { problem: 'missing' };
-  let found: { from: number; to: number } | null = null;
-  for (const stretch of collectStretches(doc)) {
+/** Every place a quote is in a document, in document positions and reading order. */
+export function findAllQuotes(doc: ProseNode, quote: string): { from: number; to: number }[] {
+  const stretches = collectStretches(doc);
+  const needle = needleFor(quote, stretches.map((s) => s.text).join('\n'));
+  if (!needle) return [];
+  const found: { from: number; to: number }[] = [];
+  for (const stretch of stretches) {
     let at = stretch.text.indexOf(needle);
     while (at !== -1) {
-      if (found) return { problem: 'repeated' };
-      found = { from: stretch.from[at], to: stretch.to[at + needle.length - 1] };
+      found.push({ from: stretch.from[at], to: stretch.to[at + needle.length - 1] });
       at = stretch.text.indexOf(needle, at + needle.length);
     }
   }
-  return found ?? { problem: 'missing' };
+  return found;
+}
+
+/** Where a quote is in a document, in document positions. */
+export function findQuote(doc: ProseNode, quote: string): QuoteMatch {
+  const found = findAllQuotes(doc, quote);
+  if (found.length > 1) return { problem: 'repeated' };
+  return found[0] ?? { problem: 'missing' };
+}
+
+/**
+ * A stretch from the start of one quote to the end of another. The end must be the only
+ * match that comes after the start, as in `propose_rewrite` in `suggest.rs`.
+ */
+export function findRange(doc: ProseNode, fromQuote: string, toQuote: string): QuoteMatch {
+  const start = findQuote(doc, fromQuote);
+  if ('problem' in start) return start;
+  const ends = findAllQuotes(doc, toQuote).filter((m) => m.from >= start.from && m.to >= start.to);
+  if (ends.length > 1) return { problem: 'repeated' };
+  return ends.length === 1 ? { from: start.from, to: ends[0].to } : { problem: 'missing' };
 }
 
 interface OldChar {
@@ -362,6 +440,106 @@ export function applyEdit(content: PmNode, quote: string, replacement: string): 
     }
     after.check();
     if (!keptNodesIntact(doc, after, true) && !keptNodesIntact(doc, after)) return { stale: cannotApply() };
+    return { doc: after.toJSON() as PmNode };
+  } catch (error) {
+    if (error instanceof FigureSafetyError) return { stale: error.message };
+    return { stale: cannotApply() };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Longer writing: inserts and rewrites, as tracked changes
+// ---------------------------------------------------------------------------
+
+/** The changes a text suggestion makes, over `from..to`, or why it cannot be made now. */
+export type PlannedChanges = { from: number; to: number; hunks: Hunk[] } | { stale: string };
+
+const staleChanged = () =>
+  t('The text has changed since this was suggested, so accepting it would undo your edits. Review it in the scene to choose the parts to keep.');
+const staleAnchors = () => t('The start or end of the passage is no longer there, because the document has changed since this was suggested.');
+const nothingChanges = () => t('This suggestion would not change anything now.');
+
+function staleFor(problem: 'missing' | 'repeated', missing: () => string): { stale: string } {
+  return { stale: problem === 'repeated' ? staleRepeated() : missing() };
+}
+
+/** Rewrites `from..to` into `replacement`, word by word and paragraph by paragraph. */
+function rewriteRange(doc: ProseNode, from: number, to: number, replacement: string): PlannedChanges {
+  const plan = planRewrite(doc, from, to);
+  if (!plan) return { stale: cannotApply() };
+  const hunks = computeHunks(doc, plan, replacement);
+  return hunks.length ? { from: plan.from, to: plan.to, hunks } : { stale: nothingChanges() };
+}
+
+function planInsert(doc: ProseNode, payload: InsertPayload): PlannedChanges {
+  const text = payload.text.trim();
+  const insertAt = (position: number): PlannedChanges => {
+    const hunks = computeInsertion(doc, position, text);
+    return hunks.length ? { from: hunks[0].from, to: hunks[0].to, hunks } : { stale: nothingChanges() };
+  };
+  if (payload.at === 'start' || payload.at === 'end') {
+    const block = payload.at === 'start' ? doc.firstChild : doc.lastChild;
+    // An empty first or last paragraph is filled rather than left beside the new text.
+    const empty = !!block && block.isTextblock && block.content.size === 0;
+    if (payload.at === 'start') return insertAt(empty ? 1 : 0);
+    return insertAt(empty ? doc.content.size - 1 : doc.content.size);
+  }
+  const found = findQuote(doc, payload.quote ?? '');
+  if ('problem' in found) return staleFor(found.problem, staleMissing);
+  const after = payload.at === 'after';
+  const $pos = doc.resolve(after ? found.to : found.from);
+  if ($pos.parent.isTextblock && after && $pos.parentOffset === $pos.parent.content.size) return insertAt(found.to);
+  if ($pos.parent.isTextblock && !after && $pos.parentOffset === 0) return insertAt($pos.before());
+  // Inside a paragraph, the words go in beside the quote, with a space between.
+  const plan = planRewrite(doc, found.from, found.to);
+  if (!plan) return { stale: cannotApply() };
+  const quoted = planToMarkdown(doc, plan);
+  return rewriteRange(doc, found.from, found.to, after ? `${quoted} ${text}` : `${text} ${quoted}`);
+}
+
+/**
+ * The changes a text suggestion makes to `doc` as it is now, found again by its quotes.
+ * `strict` refuses a whole rewrite of text that has changed since, since accepting it in
+ * one go would lose the writer's edits. Reviewed in the scene, each change is shown.
+ */
+export function planTextProposal(doc: ProseNode, proposal: TextProposal, strict: boolean): PlannedChanges {
+  try {
+    if (proposal.kind === 'insert') return planInsert(doc, proposal.payload);
+    if (proposal.kind === 'edit') {
+      const found = findQuote(doc, proposal.payload.quote);
+      if ('problem' in found) return staleFor(found.problem, staleMissing);
+      return rewriteRange(doc, found.from, found.to, proposal.payload.replacement);
+    }
+    const { payload } = proposal;
+    if (payload.mode === 'whole') {
+      const now = normalizeQuote(pmToPlainText(doc.toJSON() as PmNode));
+      if (strict && payload.original !== undefined && now !== normalizeQuote(payload.original)) return { stale: staleChanged() };
+      if (now === '') return planInsert(doc, { at: 'start', text: payload.replacement });
+      return rewriteRange(doc, 0, doc.content.size, payload.replacement);
+    }
+    const found = findRange(doc, payload.fromQuote ?? '', payload.toQuote ?? '');
+    if ('problem' in found) return staleFor(found.problem, staleAnchors);
+    return rewriteRange(doc, found.from, found.to, payload.replacement);
+  } catch (error) {
+    if (error instanceof FigureSafetyError) return { stale: error.message };
+    return { stale: cannotApply() };
+  }
+}
+
+/**
+ * Applies a text suggestion to a stored document in one go. A short edit keeps the marks
+ * of every word it leaves alone; longer writing goes through the same changes the writer
+ * would review in the scene.
+ */
+export function applyTextProposal(content: PmNode, proposal: TextProposal): EditResult {
+  if (proposal.kind === 'edit') return applyEdit(content, proposal.payload.quote, proposal.payload.replacement);
+  const doc = ProseNode.fromJSON(schema(), content);
+  const planned = planTextProposal(doc, proposal, true);
+  if ('stale' in planned) return planned;
+  try {
+    const after = applyHunks(doc, planned.hunks).doc;
+    after.check();
+    if (!keptNodesIntact(doc, after)) return { stale: cannotApply() };
     return { doc: after.toJSON() as PmNode };
   } catch (error) {
     if (error instanceof FigureSafetyError) return { stale: error.message };

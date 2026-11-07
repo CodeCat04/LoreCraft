@@ -60,9 +60,91 @@ interface ProposalBase {
   createdAt: string;
 }
 
+/** A stretch from `fromQuote` to `toQuote`, or the whole document, rewritten. */
+export interface RewritePayload {
+  mode: 'range' | 'whole';
+  fromQuote?: string;
+  toQuote?: string;
+  replacement: string;
+  /** The text replaced, as it was when suggested. For a whole rewrite, all of it. */
+  original?: string;
+  reason?: string;
+}
+
+export interface InsertPayload {
+  at: 'start' | 'end' | 'after' | 'before';
+  quote?: string;
+  text: string;
+  reason?: string;
+}
+
+/** A page named in a suggestion, as the server resolved it. */
+export interface PageRef {
+  id: string;
+  title: string;
+}
+
+export interface NewScenePayload {
+  bookId: string;
+  bookTitle: string;
+  chapterId: string;
+  chapterTitle: string;
+  afterId?: string;
+  afterTitle?: string;
+  title: string;
+  synopsis?: string;
+  pov?: PageRef;
+  location?: PageRef;
+  cast?: PageRef[];
+  text?: string;
+  reason?: string;
+}
+
+export interface NewChapterPayload {
+  bookId: string;
+  bookTitle: string;
+  parentId?: string | null;
+  afterId?: string;
+  afterTitle?: string;
+  title: string;
+  synopsis?: string;
+  scene: { title: string; synopsis?: string; pov?: PageRef; location?: PageRef; cast?: PageRef[]; text?: string };
+  reason?: string;
+}
+
+export interface SceneDetails {
+  title?: string;
+  synopsis?: string;
+  status?: string;
+  storyDate?: string;
+  notes?: string;
+  /** Null clears it. */
+  pov?: PageRef | null;
+  location?: PageRef | null;
+  cast?: PageRef[];
+}
+
+export interface SceneDetailsPayload {
+  changes: SceneDetails;
+  before: SceneDetails;
+  reason?: string;
+}
+
 export type Proposal =
   | (ProposalBase & { kind: 'edit'; targetKind: 'page' | 'node'; targetId: string; payload: EditPayload })
+  | (ProposalBase & { kind: 'rewrite'; targetKind: 'page' | 'node'; targetId: string; payload: RewritePayload })
+  | (ProposalBase & { kind: 'insert'; targetKind: 'page' | 'node'; targetId: string; payload: InsertPayload })
+  | (ProposalBase & { kind: 'newScene'; targetKind: 'node'; targetId: string; payload: NewScenePayload })
+  | (ProposalBase & { kind: 'newChapter'; targetKind: 'book'; targetId: string; payload: NewChapterPayload })
+  | (ProposalBase & { kind: 'sceneDetails'; targetKind: 'node'; targetId: string; payload: SceneDetailsPayload })
   | (ProposalBase & { kind: 'newPage'; targetKind: null; targetId: null; payload: NewPagePayload });
+
+/** A suggestion that changes the text of one document, and can be reviewed inside it. */
+export type TextProposal = Extract<Proposal, { kind: 'edit' | 'rewrite' | 'insert' }>;
+
+export function isTextProposal(proposal: Proposal): proposal is TextProposal {
+  return proposal.kind === 'edit' || proposal.kind === 'rewrite' || proposal.kind === 'insert';
+}
 
 export const mcp = {
   status: () => rpc<McpStatus>('mcp.status'),
