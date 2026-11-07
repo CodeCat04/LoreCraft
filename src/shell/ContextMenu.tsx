@@ -84,9 +84,10 @@ function OpenMenu({ menu }: { menu: Open }) {
         }
       }}
     >
-      {menu.items.map((item) => (
+      {menu.items.map((item, index) => (
         <button
-          key={item.label}
+          // A history list can name one page twice.
+          key={`${index}:${item.label}`}
           type="button"
           className="menu-item"
           role="menuitem"

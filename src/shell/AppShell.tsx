@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ContextMenuHost } from './ContextMenu';
 import { MenuBar } from './MenuBar';
+import { NavButtons, useMouseNavigation } from './NavButtons';
 import { Panes } from './Panes';
 import { ErrorBoundary } from './ErrorBoundary';
 import { useNav, areaOf, type Area, type Route } from '../state/nav';
@@ -227,6 +228,7 @@ export function AppShell() {
   const widthRef = useRef(paneWidth);
   widthRef.current = paneWidth;
   const area = areaOf(route);
+  useMouseNavigation();
 
   useEffect(() => setPaneWidth(savedWidth), [savedWidth]);
 
@@ -239,6 +241,7 @@ export function AppShell() {
       {!focusMode && (
         <header className="topbar">
           <MenuBar />
+          <NavButtons />
           <nav className="area-tabs" aria-label={t('Sections')}>
             {TABS.map((tab) => (
               <button
