@@ -17,6 +17,7 @@ import { registerNotes } from '../notes';
 import { registerProse } from '../prose';
 import { registerCanvas } from '../canvas';
 import { registerBrainstorm } from '../brainstorm';
+import { registerPlan } from '../plan';
 
 /** Lets every feature module add its commands. Runs once at startup. */
 export function registerModules() {
@@ -41,4 +42,5 @@ export function registerModules() {
   registerMeaning();
   registerCanvas();
   registerBrainstorm();
+  registerPlan();
 }

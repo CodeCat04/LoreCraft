@@ -33,6 +33,7 @@ import { isFocusedPane, useIsFocusedPane, useNav, usePaneId, type WriteMode } fr
 import { activeTab } from '../state/tabs';
 import { setProseOpen, useProse } from '../prose';
 import { useUi } from '../state/ui';
+import { PlanButtons } from '../plan/PlanButtons';
 
 function modes(): { mode: WriteMode; label: string; title: string }[] {
   return [
@@ -181,6 +182,7 @@ function EmptyBook() {
       <button type="button" className="btn btn-primary" onClick={() => void newScene()}>
         {t('Add a scene')}
       </button>
+      <PlanButtons bookId={useWrite.getState().bookId ?? undefined} />
     </div>
   );
 }
@@ -203,6 +205,7 @@ function NoBooks() {
       <button type="button" className="btn btn-primary" onClick={() => void newBook()}>
         {t('Add a book')}
       </button>
+      <PlanButtons />
     </div>
   );
 }

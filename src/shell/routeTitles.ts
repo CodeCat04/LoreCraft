@@ -37,6 +37,7 @@ const PLAIN_TITLES: Record<string, () => string> = {
   write: () => t('Write'),
   proposals: () => t('Outside suggestions'),
   brainstorm: () => t('Brainstorm'),
+  plan: () => t('Plan a story'),
 };
 
 /** The Write area knows one book at a time, and a tab can be on another one by now. */

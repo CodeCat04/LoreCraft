@@ -62,7 +62,9 @@ export type Route =
   | { view: 'styles'; tab?: string }
   | { view: 'publishing'; bookId?: string }
   | { view: 'settings'; tab?: string }
-  | { view: 'media' };
+  | { view: 'media' }
+  /** Plan a story, the step-by-step wizard. */
+  | { view: 'plan'; bookId?: string };
 
 /**
  * Everything `useNav` offers. `route`, `back` and `forward` describe the front tab of one
@@ -213,6 +215,7 @@ export function areaOf(route: Route): Area {
   switch (route.view) {
     case 'write':
     case 'stats':
+    case 'plan':
       return 'write';
     case 'consistency':
       return 'consistency';
