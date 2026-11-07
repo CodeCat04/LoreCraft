@@ -2,6 +2,17 @@
 
 What changed in each release. Versions follow [semantic versioning](https://semver.org/), and the newest is at the top. The notes for a release are also what the app shows under Help > "Check for updates".
 
+## 0.2.0
+
+Changes from real use, to make everyday writing faster.
+
+- **Pin outside suggestions.** If your AI works through MCP (Claude Code, OpenCode and the like), pin "Outside suggestions" to the top bar. A live badge shows how many are waiting, one click opens the list, and you stay in it while you accept or reject each one.
+- **Back and Forward.** Arrow buttons at the top left, plus your mouse's side buttons. Right-click either arrow for a list of recent pages to jump to.
+- **Your writing style by default.** "Rewrite in a style…" now opens with your scene's, book's or project's style already selected. **Rewrite in my style** (`Ctrl+Shift+Y`) skips the picker entirely, recently used styles come first, and you can set the default from the picker or from Book settings.
+- **Edit and rerun in the AI chat.** Edit any of your messages (or press Up in an empty message box) and run it again, or Regenerate a reply. Earlier answers are kept: flip between them with ‹ 1 of 2 ›.
+
+Projects saved by 0.2.0 use a newer file format, for chat versions. LoreCraft 0.1.0 refuses to open them rather than misread them, so update every copy you use.
+
 ## 0.1.0
 
 The first release, for Windows and Linux (a `.deb` package and an AppImage). macOS isn't supported yet.
