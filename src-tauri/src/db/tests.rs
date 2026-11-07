@@ -323,11 +323,11 @@ fn a_file_with_a_newer_schema_is_refused() {
     let file = saved_project(
         &dir,
         "schema.lorecraft",
-        &format!("{newer} UPDATE meta SET value = '0.2.0' WHERE key = 'written_by_version';"),
+        &format!("{newer} UPDATE meta SET value = '99.0.0' WHERE key = 'written_by_version';"),
     );
     assert_eq!(
         refused(&file, "TOO_NEW"),
-        "This project was saved by LoreCraft 0.2, a newer version than this one. Update LoreCraft to open it."
+        "This project was saved by LoreCraft 99.0, a newer version than this one. Update LoreCraft to open it."
     );
     // A build of this same version can have a newer schema. It is not named as newer.
     let same = saved_project(&dir, "same.lorecraft", &newer);
