@@ -70,3 +70,16 @@ Ideas from comparing LoreCraft with other AI writing tools. Everything uses the 
 
 ## 11. Share prompts as files
 - [x] Export one or all custom prompts from the prompt library to a file, and import prompts from a file (with a preview, and no duplicates).
+
+## 12. Outside AI can write in the book
+A writer reported: "The MCP connection doesn't allow you to assist in editing the write section of the book I am writing. We have had to keep using .txt documents to copy back and forth." Chapters run 4–10k words, one scene each. Every new kind still waits in Outside suggestions; nothing changes silently.
+- [x] `propose_insert`: new Markdown text at the `start` or `end` of a scene, or `after_quote` / `before_quote`. Works on an empty scene.
+- [x] `propose_rewrite` (also reachable through `propose_edit`): a range from `from_quote` to `to_quote`, both included, or `whole: true` for the entire scene.
+- [x] `propose_new_scene` and `propose_new_chapter`: placed after a named scene or chapter, or at the end; with synopsis, point of view, location and cast by page title, and the text. A new chapter carries its first scene.
+- [x] `propose_scene_details`: title, synopsis, point of view, location, cast, status, story date and notes.
+- [x] Outside suggestions shows a readable diff for rewrites and inserts, and the details of new scenes, chapters and scene details.
+- [x] **Review in the scene** opens the scene with the suggestion as tracked changes, accepted or rejected per paragraph. Plain Accept and Reject still work.
+- [x] A suggestion is found again by its quotes when the scene has changed. If the anchors are gone it says so and changes nothing.
+- [x] Forgiving matching on both sides (dashes, `--`, `…`/`...`, odd and invisible spaces, curly quotes, emphasis markers), checked by shared cases in src/mcp/quote-cases.json. A missing quote's error shows the closest passage.
+- [x] Tool descriptions, the server instructions, the `catch_up` prompt and docs/MCP.md ("Writing with an outside AI") explain it. Local-only scenes stay refused; the pending cap and size limits still apply.
+- Code: src-tauri/src/mcp/suggest.rs, text.rs, tools.rs, server.rs; src/mcp/apply.ts, actions.ts, ProposalsView.tsx.

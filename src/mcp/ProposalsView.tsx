@@ -12,8 +12,8 @@ import { isFocusedPane, useNav, usePaneId, type Route } from '../state/nav';
 import { useProject } from '../state/project';
 import { useSettings } from '../state/settings';
 import { compareTexts, type DiffLine } from '../wiki/diff';
-import { acceptProposal, rejectProposal } from './actions';
-import { mcp, type Proposal } from './api';
+import { acceptProposal, rejectProposal, reviewInDocument } from './actions';
+import { isTextProposal, mcp, type InsertPayload, type PageRef, type Proposal, type SceneDetails, type TextProposal } from './api';
 import { listInSight, nextReady, showListIn, useListFocus } from './pin';
 
 /** A translated sentence with an element, such as a link, where `{name}` is. */
@@ -149,18 +149,56 @@ function when(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-function EditDetails({ proposal }: { proposal: Extract<Proposal, { kind: 'edit' }> }) {
-  useLocale();
+/** Opens a route the way the list is shown: beside it when pinned or split, else in place. */
+function useOpenRoute(): (route: Route, keepFocus?: boolean) => void {
   const go = useNav((s) => s.go);
   const split = useNav((s) => s.panes.length > 1);
   const pinned = useSettings((s) => s.settings.mcp.pinned);
-  const lines = useMemo(() => compareTexts(proposal.payload.quote, proposal.payload.replacement), [proposal]);
-  const open = () => {
-    const route: Route = proposal.targetKind === 'page' ? { view: 'page', id: proposal.targetId } : { view: 'write', nodeId: proposal.targetId };
+  return (route, keepFocus = true) => {
     // Pinned or split, the list stays where it is and the page opens beside it.
-    if (pinned || split) useNav.getState().openBeside(route, { keepFocus: true });
+    if (pinned || split) useNav.getState().openBeside(route, { keepFocus });
     else go(route);
   };
+}
+
+function targetRoute(proposal: { targetKind: 'page' | 'node'; targetId: string }): Route {
+  return proposal.targetKind === 'page' ? { view: 'page', id: proposal.targetId } : { view: 'write', nodeId: proposal.targetId };
+}
+
+/** Long previews are cut, since the scene itself shows them in full. */
+const PREVIEW_LINES = 60;
+
+function LongDiff({ lines }: { lines: DiffLine[] }) {
+  useLocale();
+  const [all, setAll] = useState(false);
+  const shown = all ? lines : lines.slice(0, PREVIEW_LINES);
+  return (
+    <>
+      <DiffView lines={shown} />
+      {!all && lines.length > PREVIEW_LINES && (
+        <button type="button" className="link-button small" onClick={() => setAll(true)}>
+          {t('Show all {count} paragraphs', { count: lines.length })}
+        </button>
+      )}
+    </>
+  );
+}
+
+function insertPlace(payload: InsertPayload): string {
+  if (payload.at === 'start') return t('Adds text at the start.');
+  if (payload.at === 'end') return t('Adds text at the end.');
+  const quote = (payload.quote ?? '').slice(0, 120);
+  return payload.at === 'after' ? t('Adds text after “{quote}”.', { quote }) : t('Adds text before “{quote}”.', { quote });
+}
+
+function TextDetails({ proposal }: { proposal: TextProposal }) {
+  useLocale();
+  const openRoute = useOpenRoute();
+  const lines = useMemo(() => {
+    if (proposal.kind === 'edit') return compareTexts(proposal.payload.quote, proposal.payload.replacement);
+    if (proposal.kind === 'insert') return compareTexts('', proposal.payload.text);
+    return compareTexts(proposal.payload.original ?? '', proposal.payload.replacement);
+  }, [proposal]);
   const sentence = proposal.targetKind === 'page' ? t('Change to the page {title}') : t('Change to the scene {title}');
   return (
     <>
@@ -168,14 +206,135 @@ function EditDetails({ proposal }: { proposal: Extract<Proposal, { kind: 'edit' 
         {withElement(
           sentence,
           'title',
-          <button type="button" className="link-button" onClick={open}>
+          <button type="button" className="link-button" onClick={() => openRoute(targetRoute(proposal))}>
             {proposal.title || t('Untitled')}
           </button>,
         )}
       </p>
-      {lines.length > 0 ? <DiffView lines={lines} /> : <p className="muted">{t('Removes the quoted text.')}</p>}
+      {proposal.kind === 'insert' && <p className="muted small">{insertPlace(proposal.payload)}</p>}
+      {proposal.kind === 'rewrite' && (
+        <p className="muted small">{proposal.payload.mode === 'whole' ? t('Rewrites the whole text.') : t('Rewrites a passage.')}</p>
+      )}
+      {lines.length > 0 ? <LongDiff lines={lines} /> : <p className="muted">{t('Removes the quoted text.')}</p>}
     </>
   );
+}
+
+function peopleFacts(scene: { pov?: PageRef | null; location?: PageRef | null; cast?: PageRef[] }): string[] {
+  return [
+    scene.pov ? t('Point of view: {name}', { name: scene.pov.title }) : '',
+    scene.location ? t('Location: {name}', { name: scene.location.title }) : '',
+    scene.cast?.length ? t('Cast: {names}', { names: scene.cast.map((p) => p.title).join(', ') }) : '',
+  ].filter(Boolean);
+}
+
+function MarkdownPreview({ text }: { text: string | undefined }) {
+  const html = useMemo(() => renderMarkdownSafe(text ?? ''), [text]);
+  if (!text?.trim()) return null;
+  // renderMarkdownSafe escapes all HTML, since this text came from an outside AI.
+  return <div className="mcp-new-page prose" onClick={followRenderedLink} dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function NewSceneDetails({ proposal }: { proposal: Extract<Proposal, { kind: 'newScene' | 'newChapter' }> }) {
+  useLocale();
+  const { payload } = proposal;
+  const isChapter = proposal.kind === 'newChapter';
+  const scene = proposal.kind === 'newChapter' ? proposal.payload.scene : proposal.payload;
+  let place: string;
+  if (proposal.kind === 'newChapter') {
+    place = proposal.payload.afterTitle
+      ? t('After the chapter {name}, in {book}.', { name: proposal.payload.afterTitle, book: payload.bookTitle })
+      : t('At the end of {book}.', { book: payload.bookTitle });
+  } else {
+    place = proposal.payload.afterTitle
+      ? t('After the scene {name}, in {chapter}.', { name: proposal.payload.afterTitle, chapter: proposal.payload.chapterTitle })
+      : t('At the end of the chapter {chapter}.', { chapter: proposal.payload.chapterTitle });
+  }
+  const facts = [
+    place,
+    isChapter ? t('First scene: {name}', { name: scene.title }) : '',
+    ...peopleFacts(scene),
+  ].filter(Boolean);
+  return (
+    <>
+      <p className="mcp-proposal-title">
+        {withElement(isChapter ? t('New chapter: {title}') : t('New scene: {title}'), 'title', <strong>{payload.title}</strong>)}
+      </p>
+      <p className="muted small">{facts.join(' ')}</p>
+      {payload.synopsis && <p>{payload.synopsis}</p>}
+      {isChapter && scene.synopsis && <p>{scene.synopsis}</p>}
+      <MarkdownPreview text={scene.text} />
+    </>
+  );
+}
+
+function detailText(key: keyof SceneDetails, value: SceneDetails[keyof SceneDetails]): string {
+  if (value === null || value === undefined || value === '') return t('(none)');
+  if (key === 'cast') return (value as PageRef[]).map((p) => p.title).join(', ') || t('(none)');
+  if (key === 'pov' || key === 'location') return (value as PageRef).title;
+  return String(value);
+}
+
+function SceneDetailsCard({ proposal }: { proposal: Extract<Proposal, { kind: 'sceneDetails' }> }) {
+  useLocale();
+  const openRoute = useOpenRoute();
+  const { changes, before } = proposal.payload;
+  const labels: Record<keyof SceneDetails, string> = {
+    title: t('Title'),
+    synopsis: t('Synopsis'),
+    pov: t('Point of view'),
+    location: t('Location'),
+    cast: t('Cast'),
+    status: t('Status'),
+    storyDate: t('Story date'),
+    notes: t('Notes'),
+  };
+  const keys = (Object.keys(labels) as (keyof SceneDetails)[]).filter((key) => changes[key] !== undefined);
+  return (
+    <>
+      <p className="mcp-proposal-title">
+        {withElement(
+          t('Details of the scene {title}'),
+          'title',
+          <button type="button" className="link-button" onClick={() => openRoute({ view: 'write', nodeId: proposal.targetId })}>
+            {proposal.title || t('Untitled')}
+          </button>,
+        )}
+      </p>
+      <dl className="mcp-infobox mcp-details">
+        {keys.map((key) => (
+          <div key={key}>
+            <dt>{labels[key]}</dt>
+            <dd>
+              <DiffView lines={compareTexts(detailText(key, before[key]), detailText(key, changes[key]))} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </>
+  );
+}
+
+function ProposalDetails({ proposal }: { proposal: Proposal }) {
+  if (isTextProposal(proposal)) return <TextDetails proposal={proposal} />;
+  if (proposal.kind === 'newScene' || proposal.kind === 'newChapter') return <NewSceneDetails proposal={proposal} />;
+  if (proposal.kind === 'sceneDetails') return <SceneDetailsCard proposal={proposal} />;
+  return <NewPageDetails proposal={proposal} />;
+}
+
+function acceptedMessage(proposal: Proposal): string {
+  switch (proposal.kind) {
+    case 'newPage':
+      return t('Page created as a draft.');
+    case 'newScene':
+      return t('Scene added.');
+    case 'newChapter':
+      return t('Chapter added.');
+    case 'sceneDetails':
+      return t('Scene details changed.');
+    default:
+      return t('Suggestion applied. The old version is in History.');
+  }
 }
 
 function NewPageDetails({ proposal }: { proposal: Extract<Proposal, { kind: 'newPage' }> }) {
@@ -214,6 +373,7 @@ function ProposalCard({ proposal, onHandled }: { proposal: Proposal; onHandled: 
   useLocale();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const openRoute = useOpenRoute();
 
   const accept = async () => {
     setBusy(true);
@@ -222,8 +382,21 @@ function ProposalCard({ proposal, onHandled }: { proposal: Proposal; onHandled: 
       const result = await acceptProposal(proposal);
       if (result.ok) {
         onHandled(proposal.id);
-        toast(proposal.kind === 'edit' ? t('Suggestion applied. The old version is in History.') : t('Page created as a draft.'), 'success');
+        toast(acceptedMessage(proposal), 'success');
       } else setProblem(result.reason);
+    } catch (error) {
+      setProblem(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const review = async () => {
+    if (!isTextProposal(proposal)) return;
+    setBusy(true);
+    setProblem(null);
+    try {
+      const result = await reviewInDocument(proposal, (route) => openRoute(route, false));
+      if (!result.ok) setProblem(result.reason);
     } catch (error) {
       setProblem(errorMessage(error));
     } finally {
@@ -252,7 +425,7 @@ function ProposalCard({ proposal, onHandled }: { proposal: Proposal; onHandled: 
       <header className="mcp-proposal-from muted small">
         {t('From {client}, {time}', { client: proposal.client, time: when(proposal.createdAt) })}
       </header>
-      {proposal.kind === 'edit' ? <EditDetails proposal={proposal} /> : <NewPageDetails proposal={proposal} />}
+<ProposalDetails proposal={proposal} />
       {proposal.payload.reason && <p className="mcp-reason small">{t('Why: {reason}', { reason: proposal.payload.reason })}</p>}
       {problem && (
         <p className="mcp-stale small" role="alert">
@@ -269,6 +442,22 @@ function ProposalCard({ proposal, onHandled }: { proposal: Proposal; onHandled: 
         >
           {t('Accept')}
         </button>
+        {isTextProposal(proposal) && (
+          <button
+            type="button"
+            className="btn"
+            disabled={busy}
+            title={t('Open it with each change marked, to accept or reject them one by one.')}
+            aria-label={
+              proposal.title
+                ? t('Review in the document: {name}', { name: proposal.title })
+                : t('Review in the document: this suggestion')
+            }
+            onClick={() => void review()}
+          >
+            {proposal.targetKind === 'page' ? t('Review in the page') : t('Review in the scene')}
+          </button>
+        )}
         <button
           type="button"
           className="btn"

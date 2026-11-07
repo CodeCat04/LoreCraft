@@ -125,10 +125,44 @@ Suggesting, with the app open:
 | Tool | What it does |
 |---|---|
 | `propose_edit` | Suggests replacing a quoted part of a page or scene |
+| `propose_rewrite` | Suggests rewriting a passage, from `from_quote` to `to_quote`, or the whole scene with `whole: true` |
+| `propose_insert` | Suggests new text at the `start` or `end` of a scene, or `after_quote` / `before_quote` |
+| `propose_new_scene` | Suggests a new scene, after a scene or at the end of a chapter or book, with its text, synopsis, point of view, location and cast |
+| `propose_new_chapter` | Suggests a new chapter with its first scene |
+| `propose_scene_details` | Suggests changes to a scene's title, synopsis, point of view, location, cast, status, story date or notes |
 | `propose_new_page` | Suggests a new page, from a title, type, Markdown body and infobox fields |
 | `add_idea` | Adds a short idea to your idea inbox, marked with the tool it came from. It changes no page or scene |
 
 Pages are also offered as MCP resources (`lorecraft://page/<id>`), and there is a `catch_up` prompt.
+
+## Writing with an outside AI
+
+An outside AI can help write and revise the book itself, not only the wiki. Everything it writes
+waits as a suggestion, so no .txt files need to go back and forth.
+
+- **Add to a scene.** `propose_insert` with `at: "end"` continues a scene, and works on an empty one.
+  `after_quote` or `before_quote` puts text beside a few quoted words. Text is Markdown, and a blank
+  line starts a new paragraph.
+- **Revise a long passage.** `propose_rewrite` takes a short `from_quote` where the passage starts
+  and a `to_quote` where it ends, both included, so a model can rewrite twenty paragraphs without
+  quoting them. `whole: true` replaces the whole scene, up to the usual size limit, which a
+  10,000-word scene fits in.
+- **Add scenes and chapters.** `propose_new_scene` and `propose_new_chapter` place new writing after
+  a scene or chapter you name, or at the end. Point of view, location and cast are page titles.
+- **Change a scene's details.** `propose_scene_details` gives only the fields to change.
+
+Quotes are matched forgivingly but never guessed: curly and straight quotes, dashes typed as `--`,
+`...` for `…`, line breaks, odd spaces and `*emphasis*` markers do not matter. A quote must still be
+unique. If it is not found, the error shows the closest passage, so the model can try again.
+
+Examples, as a model would call them:
+
+```json
+{ "tool": "propose_insert", "arguments": { "id": "<scene id>", "at": "end", "text": "Night came.\n\nAria lit the lamp." } }
+{ "tool": "propose_rewrite", "arguments": { "id": "<scene id>", "from_quote": "Aria waited by", "to_quote": "as always.", "replacement": "New first paragraph.\n\nNew second paragraph." } }
+{ "tool": "propose_new_scene", "arguments": { "title": "The river", "after": "<scene id>", "pov": "Aria Vance", "cast": ["Bren"], "text": "Water, everywhere." } }
+{ "tool": "propose_scene_details", "arguments": { "id": "<scene id>", "synopsis": "Aria waits for Bren.", "status": "revised" } }
+```
 
 ## Suggestions
 
@@ -137,8 +171,14 @@ the top bar, and the suggestion waits under **AI > Outside suggestions**, showin
 
 - **Accept** saves the old version in History first, then applies the change. Words the suggestion
   leaves alone keep their links and formatting, and figures and tables are not touched.
-- If the quoted text has changed since, the suggestion says it is out of date and changes nothing.
-- A new page always starts as a draft.
+- **Review in the scene** opens the scene with the suggestion marked as tracked changes, one per
+  changed stretch, so you can accept or reject each paragraph. The suggestion is done when none are
+  left. Use it for long rewrites.
+- If the scene has changed since, the suggestion is found again by its quotes. If they are gone, it
+  says so and changes nothing. A whole-scene rewrite of a scene you have edited since can only be
+  reviewed in the scene, so your edits are not undone in one click.
+- A new page always starts as a draft. A new scene or chapter goes where the suggestion said, or at
+  the end of its chapter if the scene it followed is gone.
 - **Reject** dismisses it.
 
 Suggestions are kept in the project, so they wait for you across restarts. You still save as usual.

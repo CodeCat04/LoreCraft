@@ -1,0 +1,16 @@
+[
+  ["  “Don’t\n\n go,”  she said. ", "\"Don't go,\" she said."],
+  ["She waited — then ran.", "She waited-then ran."],
+  ["She waited--then ran.", "She waited-then ran."],
+  ["She waited – then ran.", "She waited-then ran."],
+  ["She waited -- then ran.", "She waited-then ran."],
+  ["A well-known gate", "A well-known gate"],
+  ["Wait… no", "Wait... no"],
+  ["Wait... no", "Wait... no"],
+  ["non breaking spaces", "non breaking spaces"],
+  ["zero​width﻿ join‍", "zerowidth join"],
+  ["tab\tand\r\nreturn", "tab and return"],
+  ["‘single’ and “double”", "'single' and \"double\""],
+  ["", ""],
+  ["  —  ", "-"]
+]
