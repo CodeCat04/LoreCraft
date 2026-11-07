@@ -120,6 +120,9 @@ function scenario(text) {
   return match ? { name: match[1], value: match[2] ?? '' } : { name: '', value: '' };
 }
 
+/** How many times each `[mock:take=...]` has been answered, so asking again gets a new answer. */
+const takes = new Map();
+
 const LONG_TEXT = 'The rain came down over the Silver Vale all through that night, and the watchers on the wall said nothing to each other. '.repeat(40);
 
 /** What a model "says", given what it was asked. Deterministic, so tests can check it. */
@@ -127,6 +130,12 @@ function answerFor(text) {
   const { name, value } = scenario(text);
   if (name === 'say' || name === 'wait') return value;
   if (name === 'slow') return LONG_TEXT;
+  // The same question asked again gets a numbered answer each time.
+  if (name === 'take') {
+    const count = (takes.get(value) ?? 0) + 1;
+    takes.set(value, count);
+    return `${value} Take ${count}.`;
+  }
   // A different answer for each version asked for, so they can be told apart.
   if (name === 'version') return `${value} Take ${/version (\d+) of \d+/i.exec(text)?.[1] ?? '?'}.`;
   const selection = /<selection[^>]*>\n?([\s\S]*?)\n?<\/selection>/.exec(text);
@@ -761,6 +770,7 @@ export function startMockServer({ port = 0, host = '127.0.0.1' } = {}) {
     if (path === '/__mock/requests') return json(res, 200, requests);
     if (path === '/__mock/reset') {
       requests.length = 0;
+      takes.clear();
       state = freshState();
       return json(res, 200, { ok: true });
     }

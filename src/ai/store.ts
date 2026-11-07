@@ -46,6 +46,7 @@ import { nextMaxTokens } from './limits';
 import { runToolLoop } from './loop';
 import { CHAT_SYSTEM, expandTemplate, usesVariable } from './prompts';
 import { LORE_TOOLS } from './tools';
+import { activePath, stepVersion } from './versions';
 import { CHARACTER_SYSTEM, CHARACTER_TOOL_NAMES, CHARACTER_TOOLS, characterBrief, characterReminder } from './companions/persona';
 import type { AiMessage, ContentBlock, ConversationSettings, StoredConversation, StoredMessage, ToolDef, ToolResultBlock, Usage } from './types';
 
@@ -101,7 +102,12 @@ export type PaneView = 'chat' | 'context' | 'prompts' | 'story' | 'feedback';
 interface PaneStore {
   conversations: StoredConversation[];
   conversation: StoredConversation | null;
+  /** The open chat as it shows: one version, first message to last. */
   messages: StoredMessage[];
+  /** Every message of the open chat, in all its versions, oldest first. */
+  tree: StoredMessage[];
+  /** A message of the writer's being changed in place. */
+  editing: { id: string; text: string } | null;
   live: LiveTurn | null;
   /** What is being typed. Never lost to a failed request. */
   draft: string;
@@ -128,6 +134,15 @@ interface PaneStore {
   send: () => Promise<void>;
   stop: () => void;
   retry: (options?: { maxTokens?: number }) => Promise<void>;
+  startEdit: (messageId: string) => void;
+  setEditText: (text: string) => void;
+  cancelEdit: () => void;
+  /** Replaces the message being edited and runs the chat again from there. What followed it stays, as an earlier version. */
+  saveEdit: () => Promise<void>;
+  /** Asks again for the reply to this message of the writer's. The old reply stays, as an earlier version. */
+  regenerate: (userMessageId: string) => Promise<void>;
+  /** Shows the version `delta` steps from this message's. */
+  showVersion: (messageId: string, delta: number) => Promise<void>;
   clearError: () => void;
   /** Forgets everything, when the project changes. */
   reset: () => void;
@@ -139,8 +154,10 @@ interface PaneStore {
 export async function restoreConversation(saved: { conversation: StoredConversation; messages: StoredMessage[] }): Promise<StoredConversation> {
   const { conversation, messages } = saved;
   const restored = await api.conversations.create(conversation.title, conversation.context);
+  // Every version comes back, each after the same message as before.
+  const ids = new Map<string, string>();
   for (const message of messages) {
-    await api.messages.add({
+    const added = await api.messages.add({
       conversationId: restored.id,
       role: message.role,
       content: message.content,
@@ -148,8 +165,13 @@ export async function restoreConversation(saved: { conversation: StoredConversat
       model: message.model ?? undefined,
       inputTokens: message.inputTokens ?? undefined,
       outputTokens: message.outputTokens ?? undefined,
+      parentId: message.parentId ? (ids.get(message.parentId) ?? null) : null,
     });
+    ids.set(message.id, added.id);
   }
+  const leaf = activePath(messages, conversation.leafId).pop();
+  const leafId = leaf ? ids.get(leaf.id) : undefined;
+  if (leafId) return api.conversations.update(restored.id, { leafId });
   return restored;
 }
 
@@ -169,6 +191,13 @@ export async function deleteOpenChat(): Promise<void> {
 
 let nextChip = 1;
 let current: { handle: StreamHandle | null; stopped: boolean } | null = null;
+/** What "Try again" does after an edit or a new reply failed before anything came back. */
+let rerun: (() => Promise<void>) | null = null;
+
+/** What the writer sees of their own message, which is what editing it starts from. */
+export function shownText(message: Pick<StoredMessage, 'content'>): string {
+  return message.content.flatMap((b) => (b.type === 'text' && !b.hidden ? [b.display ?? b.text] : [])).join('\n\n');
+}
 
 export function paneProfile(settings: ConversationSettings): AiProfile {
   return profileForTask('chat', settings.profileId);
@@ -181,7 +210,8 @@ export function usePaneProfile(): AiProfile {
   return profileForTask('chat', stored);
 }
 
-function isWithWords(message: { role: string; content: ContentBlock[] }): boolean {
+/** Whether this is something the writer said, rather than tool results going back. */
+export function isWithWords(message: { role: string; content: ContentBlock[] }): boolean {
   return message.role === 'user' && message.content.some((b) => b.type === 'text');
 }
 
@@ -300,11 +330,50 @@ async function prepareTurn(text: string, chips: SelectionChip[], settings: Conve
 }
 
 export const usePane = create<PaneStore>((set, get) => {
-  /** Adds to the conversation, on disk and on screen. */
-  const remember = async (conversationId: string, input: Omit<Parameters<typeof api.messages.add>[0], 'conversationId'>) => {
-    const stored = await api.messages.add({ conversationId, ...input });
-    if (get().conversation?.id === conversationId) set((s) => ({ messages: [...s.messages, stored] }));
+  type Remember = (input: Omit<Parameters<typeof api.messages.add>[0], 'conversationId' | 'parentId'>) => Promise<StoredMessage>;
+
+  /** Adds to the conversation after `parentId`, on disk and on screen. */
+  const remember = async (conversationId: string, parentId: string | null, input: Parameters<Remember>[0]) => {
+    const stored = await api.messages.add({ conversationId, parentId, ...input });
+    if (get().conversation?.id === conversationId) {
+      set((s) => {
+        const tree = [...s.tree, stored];
+        return { tree, messages: activePath(tree, stored.id) };
+      });
+    }
     return stored;
+  };
+
+  /**
+   * The history to send to ask again for the reply to the last of `kept`, or null if this
+   * profile may not see it. The profile may have changed since, and what it must not see
+   * cannot be asked again here.
+   */
+  const rerunHistory = (kept: StoredMessage[], profile: AiProfile): AiMessage[] | null => {
+    const allowed = historyForProfile(kept, profile, allProfiles());
+    if (allowed.withheld >= kept.length) {
+      set({
+        error: {
+          code: 'LOCAL_ONLY',
+          message: t(
+            'That message held local-only material, so it cannot be sent to {provider}. Choose a local profile, or write a new message.',
+            { provider: providerLabel(profile) },
+          ),
+          canRetry: false,
+          suggestSwitch: true,
+        },
+      });
+      return null;
+    }
+    const budget = contextBudget(profile);
+    return prepareHistory(allowed.messages, Math.floor(budget * 0.8)).messages;
+  };
+
+  /** Shows the version that ends at `leafId` again, and remembers that. */
+  const showLeaf = async (conversationId: string, leafId: string | null) => {
+    if (get().conversation?.id !== conversationId) return;
+    set((s) => ({ messages: activePath(s.tree, leafId) }));
+    if (leafId) await api.conversations.update(conversationId, { leafId }).catch(() => {});
   };
 
   const costBlock = (result: AiResult): ContentBlock[] =>
@@ -316,7 +385,7 @@ export const usePane = create<PaneStore>((set, get) => {
     conversation: StoredConversation,
     profile: AiProfile,
     messages: AiMessage[],
-    options: { maxTokens?: number; onFailureBeforeOutput?: () => Promise<void> },
+    options: { parentId: string | null; maxTokens?: number; onFailureBeforeOutput?: () => Promise<void> },
   ): Promise<void> => {
     const live: LiveTurn = { status: 'waiting', text: '', thinking: '', tools: [] };
     const run: { handle: StreamHandle | null; stopped: boolean } = { handle: null, stopped: false };
@@ -325,6 +394,13 @@ export const usePane = create<PaneStore>((set, get) => {
     set({ live: { ...live }, busy: true, error: null });
 
     const conversationId = conversation.id;
+    // Each round follows the one before it, whatever the screen shows meanwhile.
+    let parent = options.parentId;
+    const add: Remember = async (input) => {
+      const stored = await remember(conversationId, parent, input);
+      parent = stored.id;
+      return stored;
+    };
     let anyOutput = false;
     try {
       const lore = defaultLore();
@@ -393,7 +469,7 @@ export const usePane = create<PaneStore>((set, get) => {
           },
           onAssistantTurn: async (content, turn) => {
             batch.flush();
-            await remember(conversationId, {
+            await add({
               role: 'assistant',
               content: [...content, ...costBlock(turn)],
               profileId: profile.id,
@@ -409,17 +485,17 @@ export const usePane = create<PaneStore>((set, get) => {
             batch.flush();
           },
           onToolResults: async (results: ToolResultBlock[]) => {
-            await remember(conversationId, { role: 'user', content: results });
+            await add({ role: 'user', content: results });
           },
         },
       );
       batch.flush();
-      await finishTurn(conversationId, profile, result, options.maxTokens);
+      await finishTurn(add, profile, result, options.maxTokens);
     } catch (e) {
       batch.flush();
       // The project may have changed underneath this, and then there is nothing to report.
       if (get().conversation?.id === conversationId) {
-        await failTurn(conversationId, e, anyOutput || live.text.length > 0, options.onFailureBeforeOutput).catch(() => {});
+        await failTurn(add, e, anyOutput || live.text.length > 0, options.onFailureBeforeOutput).catch(() => {});
       }
     } finally {
       if (current === run) current = null;
@@ -428,7 +504,7 @@ export const usePane = create<PaneStore>((set, get) => {
     }
   };
 
-  const finishTurn = async (conversationId: string, profile: AiProfile, result: AiResult, maxTokens: number | undefined) => {
+  const finishTurn = async (remember: Remember, profile: AiProfile, result: AiResult, maxTokens: number | undefined) => {
     const base = {
       profileId: profile.id,
       model: result.model,
@@ -439,7 +515,7 @@ export const usePane = create<PaneStore>((set, get) => {
       case 'refusal': {
         const message = refusalMessage(result);
         // What arrived before a refusal is discarded, never kept as if it were complete.
-        await remember(conversationId, {
+        await remember({
           ...base,
           role: 'assistant',
           content: [
@@ -458,11 +534,11 @@ export const usePane = create<PaneStore>((set, get) => {
       }
       case 'cancelled': {
         if (result.content.length === 0) return;
-        await remember(conversationId, { ...base, role: 'assistant', content: [...result.content, { type: 'status', stopReason: 'cancelled' }, ...costBlock(result)] });
+        await remember({ ...base, role: 'assistant', content: [...result.content, { type: 'status', stopReason: 'cancelled' }, ...costBlock(result)] });
         return;
       }
       case 'max_tokens': {
-        await remember(conversationId, { ...base, role: 'assistant', content: [...result.content, { type: 'status', stopReason: 'max_tokens' }, ...costBlock(result)] });
+        await remember({ ...base, role: 'assistant', content: [...result.content, { type: 'status', stopReason: 'max_tokens' }, ...costBlock(result)] });
         set({
           error: {
             code: 'MAX_TOKENS',
@@ -475,18 +551,18 @@ export const usePane = create<PaneStore>((set, get) => {
         return;
       }
       default:
-        await remember(conversationId, { ...base, role: 'assistant', content: [...result.content, ...costBlock(result)] });
+        await remember({ ...base, role: 'assistant', content: [...result.content, ...costBlock(result)] });
     }
   };
 
-  const failTurn = async (conversationId: string, e: unknown, anyOutput: boolean, onFailureBeforeOutput?: () => Promise<void>) => {
+  const failTurn = async (remember: Remember, e: unknown, anyOutput: boolean, onFailureBeforeOutput?: () => Promise<void>) => {
     const failure = e instanceof AiError ? e : new AiError('INTERNAL', errorMessage(e));
     if (failure.code === 'DECLINED') {
       await onFailureBeforeOutput?.();
       return;
     }
     if (failure.partial.length > 0) {
-      await remember(conversationId, { role: 'assistant', content: [...failure.partial, { type: 'status', stopReason: 'error' }] });
+      await remember({ role: 'assistant', content: [...failure.partial, { type: 'status', stopReason: 'error' }] });
     } else if (!anyOutput) {
       await onFailureBeforeOutput?.();
     }
@@ -504,6 +580,8 @@ export const usePane = create<PaneStore>((set, get) => {
     conversations: [],
     conversation: null,
     messages: [],
+    tree: [],
+    editing: null,
     live: null,
     draft: '',
     chips: [],
@@ -525,13 +603,13 @@ export const usePane = create<PaneStore>((set, get) => {
 
     newChat: () => {
       get().stop();
-      set({ conversation: null, messages: [], error: null, view: 'chat', pendingSettings: {}, lastChips: [] });
+      set({ conversation: null, messages: [], tree: [], editing: null, error: null, view: 'chat', pendingSettings: {}, lastChips: [] });
     },
 
     openConversation: async (id) => {
       get().stop();
       const { conversation, messages } = await api.conversations.get(id);
-      set({ conversation, messages, error: null, view: 'chat', lastChips: [] });
+      set({ conversation, tree: messages, messages: activePath(messages, conversation.leafId), editing: null, error: null, view: 'chat', lastChips: [] });
     },
 
     deleteConversation: async (id) => {
@@ -597,7 +675,8 @@ export const usePane = create<PaneStore>((set, get) => {
       if (busy) return;
       const text = draft.trim();
       if (!text && chips.length === 0) return;
-      set({ busy: true, draft: '', chips: [], lastChips: chips, error: null });
+      rerun = null;
+      set({ busy: true, draft: '', chips: [], lastChips: chips, error: null, editing: null });
 
       const restoreDraft = () => set({ draft, chips, lastChips: [] });
       try {
@@ -606,17 +685,19 @@ export const usePane = create<PaneStore>((set, get) => {
           const pending = get().pendingSettings;
           const title = pending.character ? t('Talk to {name}', { name: pending.character.title }) : titleFrom(text, chips);
           conversation = await api.conversations.create(title, pending);
-          set({ conversation, messages: [], pendingSettings: {} });
+          set({ conversation, messages: [], tree: [], pendingSettings: {} });
         }
         const turn = await prepareTurn(text, chips, conversation.context, messages);
-        const stored = await remember(conversation.id, { role: 'user', content: turn.blocks });
+        const parentId = messages.length > 0 ? messages[messages.length - 1].id : null;
+        const stored = await remember(conversation.id, parentId, { role: 'user', content: turn.blocks });
         const openId = conversation.id;
         await runTurn(conversation, turn.profile, [...turn.history, { role: 'user', content: turn.blocks }], {
+          parentId: stored.id,
           onFailureBeforeOutput: async () => {
             // Nothing happened, so the message goes back to being a draft to try again.
             await api.messages.removeFrom(stored.id).catch(() => {});
             if (get().conversation?.id === openId) {
-              set((s) => ({ messages: s.messages.filter((m) => m.id !== stored.id) }));
+              set((s) => ({ messages: s.messages.filter((m) => m.id !== stored.id), tree: s.tree.filter((m) => m.id !== stored.id) }));
             }
             restoreDraft();
           },
@@ -640,6 +721,12 @@ export const usePane = create<PaneStore>((set, get) => {
     retry: async (options = {}) => {
       if (get().busy) return;
       set({ error: null });
+      if (rerun) {
+        const again = rerun;
+        rerun = null;
+        await again();
+        return;
+      }
       const { conversation, messages, draft, chips } = get();
       // A failure that restored the draft is retried by sending it again.
       if (draft.trim() || chips.length > 0) {
@@ -658,36 +745,108 @@ export const usePane = create<PaneStore>((set, get) => {
         }
       }
       if (last < 0) return;
+      // What failed is replaced. Other versions of this reply stay.
       const after = messages[last + 1];
       const kept = messages.slice(0, last + 1);
       const profile = paneProfile(conversation.context);
-      // The profile may have changed since. What it must not see cannot be asked again here.
-      const allowed = historyForProfile(kept, profile, allProfiles());
-      if (allowed.withheld > last) {
-        set({
-          error: {
-            code: 'LOCAL_ONLY',
-            message: t(
-              'That message held local-only material, so it cannot be sent to {provider}. Choose a local profile, or write a new message.',
-              { provider: providerLabel(profile) },
-            ),
-            canRetry: false,
-            suggestSwitch: true,
+      const history = rerunHistory(kept, profile);
+      if (!history) return;
+      if (after) {
+        await api.messages.removeFrom(after.id);
+        const { tree } = await api.conversations.get(conversation.id).then((got) => ({ tree: got.messages }));
+        set({ tree });
+      }
+      set({ messages: kept });
+      await runTurn(conversation, profile, history, { parentId: kept[last].id, maxTokens: options.maxTokens });
+    },
+
+    startEdit: (messageId) => {
+      if (get().busy) return;
+      const message = get().messages.find((m) => m.id === messageId);
+      if (!message || !isWithWords(message)) return;
+      set({ editing: { id: messageId, text: shownText(message) } });
+    },
+
+    setEditText: (text) => set((s) => (s.editing ? { editing: { ...s.editing, text } } : {})),
+
+    cancelEdit: () => set({ editing: null }),
+
+    saveEdit: async () => {
+      const { editing, busy, conversation, messages } = get();
+      if (!editing || busy || !conversation) return;
+      const text = editing.text.trim();
+      const index = messages.findIndex((m) => m.id === editing.id);
+      if (!text || index < 0) return;
+      rerun = null;
+      const before = messages.slice(0, index);
+      const parentId = before.length > 0 ? before[before.length - 1].id : null;
+      const oldLeaf = messages[messages.length - 1].id;
+      set({ busy: true, error: null, editing: null });
+      // Nothing went, so the chat shows what it did, with the edit open to finish or cancel.
+      const putBack = async () => {
+        if (get().conversation?.id !== conversation.id) return;
+        await showLeaf(conversation.id, oldLeaf);
+        set({ editing: { id: editing.id, text: editing.text } });
+        rerun = () => get().saveEdit();
+      };
+      try {
+        // Asked like a new message: lore and the open document are gathered again for it.
+        const turn = await prepareTurn(text, [], conversation.context, before);
+        const stored = await remember(conversation.id, parentId, { role: 'user', content: turn.blocks });
+        await runTurn(conversation, turn.profile, [...turn.history, { role: 'user', content: turn.blocks }], {
+          parentId: stored.id,
+          onFailureBeforeOutput: async () => {
+            await api.messages.removeFrom(stored.id).catch(() => {});
+            set((s) => ({ tree: s.tree.filter((m) => m.id !== stored.id) }));
+            await putBack();
           },
         });
-        return;
+      } catch (e) {
+        set({ busy: false, live: null, error: { code: 'INTERNAL', message: errorMessage(e), canRetry: true, suggestSwitch: false } });
+        await putBack();
       }
-      if (after) await api.messages.removeFrom(after.id);
+    },
+
+    regenerate: async (userMessageId) => {
+      const { busy, conversation, messages } = get();
+      if (busy || !conversation) return;
+      const index = messages.findIndex((m) => m.id === userMessageId);
+      if (index < 0 || !isWithWords(messages[index])) return;
+      rerun = null;
+      set({ error: null, editing: null });
+      const kept = messages.slice(0, index + 1);
+      const oldLeaf = messages[messages.length - 1].id;
+      const profile = paneProfile(conversation.context);
+      const history = rerunHistory(kept, profile);
+      if (!history) return;
       set({ messages: kept });
-      const budget = contextBudget(profile);
-      const history = prepareHistory(allowed.messages, Math.floor(budget * 0.8));
-      await runTurn(conversation, profile, history.messages, { maxTokens: options.maxTokens });
+      await runTurn(conversation, profile, history, {
+        parentId: userMessageId,
+        onFailureBeforeOutput: async () => {
+          await showLeaf(conversation.id, oldLeaf);
+          rerun = () => get().regenerate(userMessageId);
+        },
+      });
+      // Stopped before anything came: the reply there was is still the one to show.
+      const end = get().messages[get().messages.length - 1];
+      if (get().conversation?.id === conversation.id && end?.id === userMessageId) await showLeaf(conversation.id, oldLeaf);
+    },
+
+    showVersion: async (messageId, delta) => {
+      const { busy, conversation, tree } = get();
+      if (busy || !conversation) return;
+      const message = tree.find((m) => m.id === messageId);
+      const leaf = message ? stepVersion(tree, message, delta) : null;
+      if (!leaf) return;
+      rerun = null;
+      set({ error: null, editing: null });
+      await showLeaf(conversation.id, leaf);
     },
 
     reset: () => {
       get().stop();
       set({
-        conversations: [], conversation: null, messages: [], live: null, draft: '', chips: [], lastChips: [],
+        conversations: [], conversation: null, messages: [], tree: [], editing: null, live: null, draft: '', chips: [], lastChips: [],
         busy: false, error: null, view: 'chat', pendingSettings: {},
       });
     },

@@ -806,7 +806,7 @@ describe('AI against the mock server', () => {
 
     // Then the same chat moves to the cloud. Asking again cannot send it.
     await page.getByRole('combobox', { name: 'AI profile' }).selectOption(anthropicProfile().id);
-    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await page.getByRole('button', { name: 'Regenerate', exact: true }).click();
     await page.getByText('held local-only material').first().waitFor();
     assert.equal((await sent('/v1/messages')).length, 0, 'nothing went out');
     await page.getByRole('button', { name: 'Dismiss', exact: true }).click();
@@ -1763,6 +1763,126 @@ describe('AI against the mock server', () => {
     await openPane(page);
     await page.getByRole('combobox', { name: 'Conversation' }).selectOption(list[1].id);
     await page.getByTestId('ai-assistant').first().locator('a[data-wiki-target]').waitFor();
+  });
+
+  it('Versions: edit a message and rerun, switch back, regenerate, and they survive a reload', async () => {
+    const page = await start(localProfile());
+    await openPane(page);
+    const pane = page.getByTestId('ai-pane');
+    const userText = () => pane.getByTestId('ai-user').first().locator('.ai-user-text').innerText();
+    const messageVersions = () => pane.getByTestId('ai-user').first().getByRole('group', { name: 'Versions of this message' });
+    const replyVersions = () => pane.getByTestId('ai-assistant').last().getByRole('group', { name: 'Versions of this reply' });
+    const status = page.getByTestId('ai-reply-status');
+
+    await send(page, '[mock:take=Gate]');
+    await waitForIdle(page);
+    assert.match(await lastAnswerText(page), /Gate Take 1\./);
+    assert.equal(await messageVersions().count(), 0, 'one version shows no arrows');
+
+    // The keyboard: Up in the empty box opens the last message, and Escape puts it back.
+    const input = page.getByRole('textbox', { name: 'Message the AI' });
+    await input.focus();
+    await page.keyboard.press('ArrowUp');
+    const editor = page.getByRole('textbox', { name: 'Edit your message' });
+    await editor.waitFor();
+    assert.equal(await editor.inputValue(), '[mock:take=Gate]');
+    await page.keyboard.press('Escape');
+    await editor.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Edit', 'focus goes back to Edit');
+    assert.match(await lastAnswerText(page), /Gate Take 1\./, 'cancelling changes nothing');
+
+    // The button: change the words, and Ctrl+Enter saves and runs them.
+    await pane.getByTestId('ai-user').first().getByRole('button', { name: 'Edit', exact: true }).click();
+    await editor.fill('[mock:take=Wall]');
+    await editor.press('Control+Enter');
+    await waitForIdle(page);
+    await waitUntil(async () => /Wall Take 1\./.test(await lastAnswerText(page)), 5000, 'the new answer');
+    assert.equal(await userText(), '[mock:take=Wall]');
+    assert.equal(await pane.getByTestId('ai-assistant').count(), 1, 'the old reply is not on screen');
+    assert.match(await messageVersions().innerText(), /2 of 2/);
+    await waitUntil(async () => (await status.innerText()) === 'Reply finished.', 5000, 'the screen reader to hear the reply finished');
+
+    // The earlier version is still there, as it was.
+    await messageVersions().getByRole('button', { name: 'Previous version' }).click();
+    await waitUntil(async () => (await userText()) === '[mock:take=Gate]', 5000, 'the earlier version');
+    assert.match(await lastAnswerText(page), /Gate Take 1\./);
+    assert.match(await messageVersions().innerText(), /1 of 2/);
+
+    // Regenerate asks the same question again and keeps the first reply.
+    await pane.getByRole('button', { name: 'Regenerate', exact: true }).click();
+    await waitForIdle(page);
+    await waitUntil(async () => /Gate Take 2\./.test(await lastAnswerText(page)), 5000, 'the regenerated answer');
+    assert.match(await replyVersions().innerText(), /2 of 2/);
+    await replyVersions().getByRole('button', { name: 'Previous version' }).click();
+    await waitUntil(async () => /Gate Take 1\./.test(await lastAnswerText(page)), 5000, 'the first reply');
+    await replyVersions().getByRole('button', { name: 'Next version' }).click();
+    await waitUntil(async () => /Gate Take 2\./.test(await lastAnswerText(page)), 5000, 'the second reply');
+
+    const [chat] = await rpc(page, 'ai.listConversations');
+    const { messages } = await rpc(page, 'ai.getConversation', { id: chat.id });
+    assert.equal(messages.length, 5, 'two questions and three replies, all kept');
+
+    // After a reload, the chat opens on the version last shown, with the others a step away.
+    await page.reload();
+    await page.locator('.topbar').waitFor();
+    await openPane(page);
+    await page.getByRole('combobox', { name: 'Conversation' }).selectOption(chat.id);
+    await waitUntil(async () => /Gate Take 2\./.test(await lastAnswerText(page)), 5000, 'the chat to open');
+    assert.equal(await userText(), '[mock:take=Gate]');
+    assert.match(await replyVersions().innerText(), /2 of 2/);
+    assert.match(await messageVersions().innerText(), /1 of 2/);
+    await messageVersions().getByRole('button', { name: 'Next version' }).click();
+    await waitUntil(async () => (await userText()) === '[mock:take=Wall]', 5000, 'the edited version');
+    assert.match(await lastAnswerText(page), /Wall Take 1\./);
+    const requests = await sent('/v1/chat/completions');
+    assert.equal(requests.length, 3, 'switching versions sends nothing');
+  });
+
+  it('Versions: on a cloud profile, an edit and a new reply still stop at the spending limit', async () => {
+    const page = await start(anthropicProfile(), ANTHROPIC_KEY);
+    await openPane(page);
+    const pane = page.getByTestId('ai-pane');
+    await send(page, '[mock:take=Tower]');
+    await waitForIdle(page);
+    assert.match(await lastAnswerText(page), /Tower Take 1\./);
+    const [chat] = await rpc(page, 'ai.listConversations');
+
+    const month = new Date().toISOString().slice(0, 7);
+    await rpc(page, 'settings.update', { patch: { ai: { spending: { limitUsd: 1, month, spentUsd: 1 } } } });
+    await page.reload();
+    await page.locator('.prose').first().waitFor();
+    await openPane(page);
+    await page.getByRole('combobox', { name: 'Conversation' }).selectOption(chat.id);
+    await pane.getByTestId('ai-assistant').first().waitFor();
+    const before = (await sent('/v1/messages')).length;
+    const dialog = page.getByRole('alertdialog');
+
+    await pane.getByRole('button', { name: 'Regenerate', exact: true }).click();
+    await dialog.getByText('Cloud spending limit reached').waitFor();
+    await dialog.getByRole('button', { name: 'Stop' }).click();
+    await waitForIdle(page);
+    assert.equal((await sent('/v1/messages')).length, before, 'nothing went out');
+    assert.match(await lastAnswerText(page), /Tower Take 1\./, 'the reply there was still shows');
+    assert.equal(await pane.getByTestId('ai-versions').count(), 0, 'and no empty version was made');
+
+    await pane.getByRole('button', { name: 'Edit', exact: true }).click();
+    const editor = page.getByRole('textbox', { name: 'Edit your message' });
+    await editor.fill('[mock:take=Keep]');
+    await pane.getByRole('button', { name: 'Save & run' }).click();
+    await dialog.getByText('Cloud spending limit reached').waitFor();
+    await dialog.getByRole('button', { name: 'Stop' }).click();
+    await editor.waitFor();
+    assert.equal(await editor.inputValue(), '[mock:take=Keep]', 'the edit is not lost');
+    assert.equal((await sent('/v1/messages')).length, before, 'nothing went out');
+    assert.equal((await rpc(page, 'ai.getConversation', { id: chat.id })).messages.length, 2);
+
+    // Allowed, the edit runs as a new version, and the request replays a valid history.
+    await editor.press('Control+Enter');
+    await dialog.getByRole('button', { name: 'Allow for the rest of this month' }).click();
+    await waitForIdle(page);
+    await waitUntil(async () => /Keep Take 1\./.test(await lastAnswerText(page)), 5000, 'the new answer');
+    assert.equal((await sent('/v1/messages')).length, before + 1);
+    assert.match(await pane.getByRole('group', { name: 'Versions of this message' }).innerText(), /2 of 2/);
   });
 
   it('Replace selection and Insert from the pane arrive as tracked changes', async () => {

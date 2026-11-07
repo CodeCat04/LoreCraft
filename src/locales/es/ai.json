@@ -497,7 +497,6 @@
   "Restore": "Restaurar",
   "Restore “{name}”?": "¿Restaurar «{name}»?",
   "Resume": "Reanudar",
-  "Retry": "Reintentar",
   "Review suggestions from AI tools outside LoreCraft": "Revisa las sugerencias de herramientas de IA fuera de LoreCraft",
   "Rewrite in a style…": "Reescribir en un estilo…",
   "Rewrite in which style?": "¿Con qué estilo quieres reescribirlo?",
@@ -855,5 +854,15 @@
   "Text": "Texto",
   "This goes to {provider} when you ask.": "Esto se envía a {provider} cuando preguntes.",
   "About {count} in all.": "Unos {count} en total.",
-  "Working out what is sent…": "Calculando qué se envía…"
+  "Working out what is sent…": "Calculando qué se envía…",
+  "Previous version": "Versión anterior",
+  "{number} of {count}": "{number} de {count}",
+  "Next version": "Versión siguiente",
+  "Versions of this reply": "Versiones de esta respuesta",
+  "Ask for this reply again. This one is kept as an earlier version.": "Pide esta respuesta de nuevo. Esta se guarda como una versión anterior.",
+  "Edit your message": "Edita tu mensaje",
+  "Later replies are kept as an earlier version.": "Las respuestas siguientes se guardan como una versión anterior.",
+  "Save & run": "Guardar y ejecutar",
+  "Versions of this message": "Versiones de este mensaje",
+  "Change this message and run the chat again from here. Up arrow in an empty message box edits your last one.": "Cambia este mensaje y vuelve a ejecutar el chat desde aquí. La flecha arriba en un cuadro de mensaje vacío edita el último."
 }

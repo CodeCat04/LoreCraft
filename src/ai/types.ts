@@ -159,6 +159,8 @@ export interface StoredConversation {
   context: ConversationSettings;
   createdAt: string;
   updatedAt: string;
+  /** The last message of the version on screen. Null means the newest. */
+  leafId?: string | null;
 }
 
 /** The page a conversation's model plays. */
@@ -191,6 +193,8 @@ export interface StoredMessage {
   inputTokens: number | null;
   outputTokens: number | null;
   createdAt: string;
+  /** The message this follows. Null for a first message. See `versions.ts`. */
+  parentId?: string | null;
 }
 
 export type PromptScope = 'selection' | 'page' | 'scene' | 'chat';

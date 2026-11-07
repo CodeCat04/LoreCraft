@@ -445,6 +445,10 @@ under `src/ai/`.
   so `system`, tools and earlier messages stay byte-identical: lore goes in user messages,
   never in `system`. Each block keeps its provider's `raw` form for replay to that provider,
   and another provider gets the normalized fields instead.
+- Editing a message or asking for a reply again never rewrites history: it adds a new
+  version. Each message has a `parent_id`, so a chat is a tree, and `leaf_id` on the
+  conversation names the version on screen. `src/ai/versions.ts` turns these into the line
+  that shows and the "‹ 1 of 2 ›" steps. Every version is append-only on its own.
 - The AI edits through suggestions in `src/editor/ai/`: decorations that do not touch the
   document until accepted. Figures, tables and images are never part of a change. A model
   sees each as a `{{KEEP n: ...}}` line and its reply is split around them, so they keep
