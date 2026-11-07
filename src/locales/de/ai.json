@@ -497,7 +497,6 @@
   "Restore": "Wiederherstellen",
   "Restore “{name}”?": "„{name}“ wiederherstellen?",
   "Resume": "Fortsetzen",
-  "Retry": "Wiederholen",
   "Review suggestions from AI tools outside LoreCraft": "Vorschläge von KI-Werkzeugen außerhalb von LoreCraft prüfen",
   "Rewrite in a style…": "In einem Stil umschreiben…",
   "Rewrite in which style?": "In welchem Stil umschreiben?",
@@ -869,5 +868,15 @@
   "Project default": "Standard im Projekt",
   "Set {name} as project default": "{name} als Standard für das Projekt festlegen",
   "Set as project default (Alt+Enter)": "Als Standard für das Projekt festlegen (Alt+Eingabe)",
-  "Set as project default": "Als Projektstandard festlegen"
+  "Set as project default": "Als Projektstandard festlegen",
+  "Previous version": "Vorherige Version",
+  "{number} of {count}": "{number} von {count}",
+  "Next version": "Nächste Version",
+  "Versions of this reply": "Versionen dieser Antwort",
+  "Ask for this reply again. This one is kept as an earlier version.": "Diese Antwort neu anfordern. Diese bleibt als frühere Version erhalten.",
+  "Edit your message": "Nachricht bearbeiten",
+  "Later replies are kept as an earlier version.": "Spätere Antworten bleiben als frühere Version erhalten.",
+  "Save & run": "Speichern und ausführen",
+  "Versions of this message": "Versionen dieser Nachricht",
+  "Change this message and run the chat again from here. Up arrow in an empty message box edits your last one.": "Diese Nachricht ändern und den Chat ab hier neu ausführen. Pfeil nach oben in einem leeren Nachrichtenfeld bearbeitet die letzte."
 }

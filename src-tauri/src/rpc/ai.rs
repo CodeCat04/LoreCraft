@@ -22,6 +22,8 @@ struct Conversation {
     context: Value,
     created_at: String,
     updated_at: String,
+    /// The last message of the version on screen. None means the newest one.
+    leaf_id: Option<String>,
 }
 
 fn conversation_from_row(r: &Row) -> rusqlite::Result<Conversation> {
@@ -32,10 +34,37 @@ fn conversation_from_row(r: &Row) -> rusqlite::Result<Conversation> {
         context: serde_json::from_str(&context).unwrap_or_else(|_| json!({})),
         created_at: r.get(3)?,
         updated_at: r.get(4)?,
+        leaf_id: r.get(5)?,
     })
 }
 
-const CONVERSATION_COLS: &str = "id, title, context, created_at, updated_at";
+const CONVERSATION_COLS: &str = "id, title, context, created_at, updated_at, leaf_id";
+
+/// Tells a field that was left out from one set to null, so `"parentId": null` can mean
+/// "the first message" while leaving it out means "after the last one".
+fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Option<String>>, D::Error> {
+    Option::<String>::deserialize(d).map(Some)
+}
+
+/// A message of this conversation, or an error saying it is not one.
+fn message_in(conn: &Connection, conversation_id: &str, id: &str) -> AppResult<StoredMessage> {
+    let message = get_message(conn, id)?;
+    if message.conversation_id != conversation_id {
+        return Err(AppError::invalid("That message belongs to another conversation."));
+    }
+    Ok(message)
+}
+
+/// What a new message follows when the caller does not say: the end of the version on screen,
+/// or else the newest message.
+fn default_parent(conn: &Connection, conversation: &Conversation) -> AppResult<Option<String>> {
+    if let Some(leaf) = &conversation.leaf_id {
+        if message_in(conn, &conversation.id, leaf).is_ok() {
+            return Ok(Some(leaf.clone()));
+        }
+    }
+    Ok(list_messages(conn, &conversation.id)?.pop().map(|m| m.id))
+}
 
 fn get_conversation(conn: &Connection, id: &str) -> AppResult<Conversation> {
     conn.query_row(
@@ -59,10 +88,12 @@ struct StoredMessage {
     input_tokens: Option<i64>,
     output_tokens: Option<i64>,
     created_at: String,
+    /// The message this one follows. None for the first message of a conversation.
+    parent_id: Option<String>,
 }
 
 const MESSAGE_COLS: &str =
-    "id, conversation_id, role, content, profile_id, model, input_tokens, output_tokens, created_at";
+    "id, conversation_id, role, content, profile_id, model, input_tokens, output_tokens, created_at, parent_id";
 
 fn message_from_row(r: &Row) -> rusqlite::Result<StoredMessage> {
     let content: String = r.get(3)?;
@@ -77,6 +108,7 @@ fn message_from_row(r: &Row) -> rusqlite::Result<StoredMessage> {
         input_tokens: r.get(6)?,
         output_tokens: r.get(7)?,
         created_at: r.get(8)?,
+        parent_id: r.get(9)?,
     })
 }
 
@@ -300,10 +332,21 @@ pub fn handle(engine: &Engine, action: &str, params: Value) -> AppResult<Value> 
                 id: String,
                 title: Option<String>,
                 context: Option<Value>,
+                /// Which version to show, by its last message.
+                #[serde(rename = "leafId")]
+                leaf_id: Option<String>,
             }
             let p: P = parse(params)?;
             let conversation = engine.write(|tx| {
                 get_conversation(tx, &p.id)?;
+                if let Some(leaf) = &p.leaf_id {
+                    message_in(tx, &p.id, leaf)?;
+                    tx.execute("UPDATE ai_conversations SET leaf_id = ?1 WHERE id = ?2", params![leaf, p.id])?;
+                    // Looking at another version is not a change to the chat, so it keeps its place.
+                    if p.title.is_none() && p.context.is_none() {
+                        return get_conversation(tx, &p.id);
+                    }
+                }
                 if let Some(title) = &p.title {
                     tx.execute("UPDATE ai_conversations SET title = ?1 WHERE id = ?2", params![title, p.id])?;
                 }
@@ -344,6 +387,10 @@ pub fn handle(engine: &Engine, action: &str, params: Value) -> AppResult<Value> 
                 model: Option<String>,
                 input_tokens: Option<i64>,
                 output_tokens: Option<i64>,
+                /// The message this follows. Null for the first one; left out for after the
+                /// end of the version on screen.
+                #[serde(default, deserialize_with = "present")]
+                parent_id: Option<Option<String>>,
             }
             let p: P = parse(params)?;
             if !matches!(p.role.as_str(), "user" | "assistant") {
@@ -353,17 +400,23 @@ pub fn handle(engine: &Engine, action: &str, params: Value) -> AppResult<Value> 
                 return Err(AppError::invalid("Message content must be a list of blocks."));
             }
             let message = engine.write(|tx| {
-                get_conversation(tx, &p.conversation_id)?;
+                let conversation = get_conversation(tx, &p.conversation_id)?;
+                let parent = match &p.parent_id {
+                    Some(Some(parent)) => Some(message_in(tx, &conversation.id, parent)?.id),
+                    Some(None) => None,
+                    None => default_parent(tx, &conversation)?,
+                };
                 let id = db::new_id();
                 let now = db::now();
                 tx.execute(
-                    "INSERT INTO ai_messages (id, conversation_id, role, content, profile_id, model, input_tokens, output_tokens, created_at)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-                    params![id, p.conversation_id, p.role, p.content.to_string(), p.profile_id, p.model, p.input_tokens, p.output_tokens, now],
+                    "INSERT INTO ai_messages (id, conversation_id, role, content, profile_id, model, input_tokens, output_tokens, created_at, parent_id)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                    params![id, p.conversation_id, p.role, p.content.to_string(), p.profile_id, p.model, p.input_tokens, p.output_tokens, now, parent],
                 )?;
+                // What was just added is what the conversation shows.
                 tx.execute(
-                    "UPDATE ai_conversations SET updated_at = ?1 WHERE id = ?2",
-                    params![now, p.conversation_id],
+                    "UPDATE ai_conversations SET updated_at = ?1, leaf_id = ?2 WHERE id = ?3",
+                    params![now, id, p.conversation_id],
                 )?;
                 get_message(tx, &id)
             })?;
@@ -379,17 +432,32 @@ pub fn handle(engine: &Engine, action: &str, params: Value) -> AppResult<Value> 
             let p: P = parse(params)?;
             ok(engine.read(|c| list_messages(c, &p.conversation_id))?)
         }
-        // Removes this message and everything after it, for retrying. A later request
-        // never replays what is removed, so what remains is still append-only.
+        // Removes this message and everything that follows it, for retrying. Other versions
+        // stay. A later request never replays what is removed, so what remains is still
+        // append-only.
         "deleteMessagesFrom" => {
             let p: IdParam = parse(params)?;
             let removed = engine.write(|tx| {
                 let message = get_message(tx, &p.id)?;
-                let messages = list_messages(tx, &message.conversation_id)?;
-                let start = messages.iter().position(|m| m.id == p.id).unwrap_or(messages.len());
+                let conversation = get_conversation(tx, &message.conversation_id)?;
+                let mut doomed = vec![message.id.clone()];
+                let mut index = 0;
+                while index < doomed.len() {
+                    let mut stmt = tx.prepare("SELECT id FROM ai_messages WHERE parent_id = ?1")?;
+                    let children: Vec<String> = stmt.query_map([&doomed[index]], |r| r.get(0))?.collect::<Result<_, _>>()?;
+                    doomed.extend(children);
+                    index += 1;
+                }
                 let mut removed = 0;
-                for later in &messages[start..] {
-                    removed += tx.execute("DELETE FROM ai_messages WHERE id = ?1", [&later.id])?;
+                for id in &doomed {
+                    removed += tx.execute("DELETE FROM ai_messages WHERE id = ?1", [id])?;
+                }
+                // The version on screen ends where the removed part began.
+                if conversation.leaf_id.as_ref().is_some_and(|leaf| doomed.contains(leaf)) {
+                    tx.execute(
+                        "UPDATE ai_conversations SET leaf_id = ?1 WHERE id = ?2",
+                        params![message.parent_id, conversation.id],
+                    )?;
                 }
                 Ok(removed)
             })?;
@@ -619,6 +687,63 @@ mod tests {
         let left = call(&engine, "ai.listMessages", json!({ "conversationId": id }));
         assert_eq!(left.as_array().unwrap().len(), 1);
         assert_eq!(left[0]["content"][0]["text"], "one");
+    }
+
+    #[test]
+    fn edits_and_regenerations_are_kept_as_versions() {
+        let (engine, _dir) = project();
+        let conv = call(&engine, "ai.createConversation", json!({}));
+        let id = conv["id"].as_str().unwrap();
+        let add = |role: &str, text: &str, parent: Option<Value>| {
+            let mut input = json!({ "conversationId": id, "role": role, "content": [{ "type": "text", "text": text }] });
+            if let Some(parent) = parent {
+                input["parentId"] = parent;
+            }
+            call(&engine, "ai.addMessage", input)
+        };
+        let question = add("user", "q", None);
+        assert_eq!(question["parentId"], Value::Null);
+        let first = add("assistant", "a1", None);
+        assert_eq!(first["parentId"], question["id"]);
+        // Asked again: another reply to the same question.
+        let second = add("assistant", "a2", Some(question["id"].clone()));
+        assert_eq!(second["parentId"], question["id"]);
+        // Edited: another first message, with no parent.
+        let edited = add("user", "q edited", Some(Value::Null));
+        assert_eq!(edited["parentId"], Value::Null);
+        let reply = add("assistant", "a3", None);
+        assert_eq!(reply["parentId"], edited["id"], "a new message follows the last one added");
+
+        let got = call(&engine, "ai.getConversation", json!({ "id": id }));
+        assert_eq!(got["messages"].as_array().unwrap().len(), 5, "every version is kept");
+        assert_eq!(got["conversation"]["leafId"], reply["id"]);
+
+        // Showing another version is remembered, and does not move the chat up the list.
+        let updated = got["conversation"]["updatedAt"].clone();
+        let shown = call(&engine, "ai.updateConversation", json!({ "id": id, "leafId": first["id"] }));
+        assert_eq!(shown["leafId"], first["id"]);
+        assert_eq!(shown["updatedAt"], updated);
+        let after_first = add("user", "follow-up", None);
+        assert_eq!(after_first["parentId"], first["id"]);
+
+        // Removing one version leaves the others, and the view ends where it was cut.
+        assert_eq!(call(&engine, "ai.deleteMessagesFrom", json!({ "id": first["id"] })), 2);
+        let got = call(&engine, "ai.getConversation", json!({ "id": id }));
+        let texts: Vec<&str> = got["messages"].as_array().unwrap().iter().map(|m| m["content"][0]["text"].as_str().unwrap()).collect();
+        assert_eq!(texts, ["q", "a2", "q edited", "a3"]);
+        assert_eq!(got["conversation"]["leafId"], question["id"]);
+    }
+
+    #[test]
+    fn a_version_cannot_follow_a_message_from_another_chat() {
+        let (engine, _dir) = project();
+        let one = call(&engine, "ai.createConversation", json!({}));
+        let two = call(&engine, "ai.createConversation", json!({}));
+        let there = call(&engine, "ai.addMessage", json!({ "conversationId": one["id"], "role": "user", "content": [] }));
+        let error = dispatch(&engine, "ai.addMessage", json!({ "conversationId": two["id"], "role": "user", "content": [], "parentId": there["id"] })).unwrap_err();
+        assert_eq!(error.code, "INVALID");
+        assert_eq!(dispatch(&engine, "ai.updateConversation", json!({ "id": two["id"], "leafId": there["id"] })).unwrap_err().code, "INVALID");
+        assert_eq!(dispatch(&engine, "ai.addMessage", json!({ "conversationId": two["id"], "role": "user", "content": [], "parentId": "nope" })).unwrap_err().code, "NOT_FOUND");
     }
 
     #[test]

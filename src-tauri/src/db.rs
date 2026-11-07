@@ -13,6 +13,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/001_init.sql"),
     include_str!("../migrations/002_index_keys.sql"),
     include_str!("../migrations/003_canvases.sql"),
+    include_str!("../migrations/004_message_versions.sql"),
 ];
 
 /// The oldest LoreCraft that can read what this version writes. Every project stores it in

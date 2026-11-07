@@ -36,7 +36,7 @@ export const conversations = {
     rpc<StoredConversation>('ai.createConversation', { title, context }),
   get: (id: string) =>
     rpc<{ conversation: StoredConversation; messages: StoredMessage[] }>('ai.getConversation', { id }),
-  update: (id: string, patch: { title?: string; context?: ConversationSettings }) =>
+  update: (id: string, patch: { title?: string; context?: ConversationSettings; leafId?: string }) =>
     rpc<StoredConversation>('ai.updateConversation', { id, ...patch }),
   remove: (id: string) => rpc<boolean>('ai.deleteConversation', { id }),
 };
@@ -50,8 +50,10 @@ export const messages = {
     model?: string;
     inputTokens?: number;
     outputTokens?: number;
+    /** What this follows: null starts the chat, and leaving it out follows the version on screen. */
+    parentId?: string | null;
   }) => rpc<StoredMessage>('ai.addMessage', input),
-  /** Removes this message and everything after it, for retrying. */
+  /** Removes this message and everything that follows it, for retrying. Other versions stay. */
   removeFrom: (id: string) => rpc<number>('ai.deleteMessagesFrom', { id }),
 };
 

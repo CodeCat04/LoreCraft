@@ -915,3 +915,27 @@ fn the_sample_projects_upgrade_to_the_schema_of_a_new_project() {
         assert_eq!(meta(&conn, META_MIN_READER).as_deref(), Some(MIN_READER_VERSION));
     }
 }
+
+#[test]
+fn chats_from_before_versions_become_one_line() {
+    let dir = TestDir::new();
+    let mut conn = open_working(&dir.0.join("working.db")).unwrap();
+    migrate_with(&mut conn, &MIGRATIONS[..3]).unwrap();
+    conn.execute_batch(
+        "INSERT INTO ai_conversations (id, title, context, created_at, updated_at) VALUES ('c1', 'Chat', '{}', 'x', 'x'), ('c2', 'Other', '{}', 'x', 'x');
+         INSERT INTO ai_messages (id, conversation_id, role, content, created_at) VALUES
+           ('m3', 'c1', 'user', '[]', '2026-01-02'),
+           ('m1', 'c1', 'user', '[]', '2026-01-01'),
+           ('m2', 'c1', 'assistant', '[]', '2026-01-01'),
+           ('n1', 'c2', 'user', '[]', '2026-01-01');",
+    )
+    .unwrap();
+    migrate_with(&mut conn, MIGRATIONS).unwrap();
+    let parent = |id: &str| -> Option<String> {
+        conn.query_row("SELECT parent_id FROM ai_messages WHERE id = ?1", [id], |r| r.get(0)).unwrap()
+    };
+    assert_eq!(parent("m1"), None);
+    assert_eq!(parent("m2").as_deref(), Some("m1"), "a tie in time goes by id");
+    assert_eq!(parent("m3").as_deref(), Some("m2"));
+    assert_eq!(parent("n1"), None, "each chat is its own line");
+}

@@ -29,9 +29,11 @@ import {
 import { PromptLibrary } from './PromptLibrary';
 import { StoryPanel } from './summaries/StoryPanel';
 import { PROPOSE_EDIT, PROPOSE_NEW_PAGE } from './tools';
+import { versionsOf } from './versions';
 import {
   createProposedPage,
   insertReply,
+  isWithWords,
   replaceSelectionWith,
   reviewProposedEdit,
   usePane,
@@ -242,9 +244,52 @@ function mergeAdjacentText(content: ContentBlock[]): ContentBlock[] {
   return out;
 }
 
-function AssistantMessage({ message, results, isLast }: { message: StoredMessage; results: Map<string, ToolResultBlock>; isLast: boolean }) {
+/** "‹ 1 of 2 ›": steps between the versions of a message, when it has more than one. */
+function VersionArrows({ message, label }: { message: StoredMessage; label: string }) {
   useLocale();
-  const retry = usePane((s) => s.retry);
+  const tree = usePane((s) => s.tree);
+  const busy = usePane((s) => s.busy);
+  const showVersion = usePane((s) => s.showVersion);
+  const versions = useMemo(() => versionsOf(tree, message), [tree, message]);
+  if (versions.count < 2) return null;
+  return (
+    <span className="ai-turn-versions" role="group" aria-label={label} data-testid="ai-turn-versions">
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label={t('Previous version')}
+        title={t('Previous version')}
+        disabled={busy || versions.index === 0}
+        onClick={() => void showVersion(message.id, -1)}
+      >
+        ‹
+      </button>
+      <span>{t('{number} of {count}', { number: versions.index + 1, count: versions.count })}</span>
+      <button
+        type="button"
+        className="icon-btn"
+        aria-label={t('Next version')}
+        title={t('Next version')}
+        disabled={busy || versions.index === versions.count - 1}
+        onClick={() => void showVersion(message.id, 1)}
+      >
+        ›
+      </button>
+    </span>
+  );
+}
+
+/** Where a turn's reply ends: its versions, and asking for another. */
+interface TurnEnd {
+  /** The writer's message the reply answers. */
+  questionId: string;
+  /** The reply's first message, whose versions are the turn's. */
+  head: StoredMessage;
+}
+
+function AssistantMessage({ message, results, turnEnd }: { message: StoredMessage; results: Map<string, ToolResultBlock>; turnEnd: TurnEnd | null }) {
+  useLocale();
+  const regenerate = usePane((s) => s.regenerate);
   const busy = usePane((s) => s.busy);
   const blocks = useMemo(() => mergeAdjacentText(message.content), [message.content]);
   const text = blocks.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('\n\n');
@@ -273,15 +318,79 @@ function AssistantMessage({ message, results, isLast }: { message: StoredMessage
       {text && (character ? <CharacterReplyActions character={character} text={text} /> : <Actions text={text} />)}
       <div className="ai-message-foot">
         {usage && <span className="ai-usage faint" data-testid="ai-usage">{usage}</span>}
-        {isLast && !busy && (
-          <button type="button" className="link-button small" onClick={() => void retry()}>{t('Retry')}</button>
+        {turnEnd && (
+          <>
+            <VersionArrows message={turnEnd.head} label={t('Versions of this reply')} />
+            <button
+              type="button"
+              className="link-button small"
+              disabled={busy}
+              title={t('Ask for this reply again. This one is kept as an earlier version.')}
+              onClick={() => void regenerate(turnEnd.questionId)}
+            >
+              {t('Regenerate')}
+            </button>
+          </>
         )}
       </div>
     </div>
   );
 }
 
-function UserMessage({ message }: { message: StoredMessage }) {
+/** Changes a message of the writer's in place. Ctrl+Enter saves and runs it, Escape cancels. */
+function MessageEditor() {
+  useLocale();
+  const editing = usePane((s) => s.editing);
+  const setEditText = usePane((s) => s.setEditText);
+  const saveEdit = usePane((s) => s.saveEdit);
+  const cancelEdit = usePane((s) => s.cancelEdit);
+  const busy = usePane((s) => s.busy);
+  if (!editing) return null;
+  const canSave = !busy && editing.text.trim().length > 0;
+  return (
+    <div className="ai-message ai-message-user is-editing" data-testid="ai-user-editing">
+      <textarea
+        className="textarea ai-edit-input"
+        rows={3}
+        aria-label={t('Edit your message')}
+        autoFocus
+        value={editing.text}
+        onChange={(e) => setEditText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            if (canSave) void saveEdit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            cancelEdit();
+          }
+        }}
+      />
+      <div className="ai-edit-actions">
+        <span className="faint small">{t('Later replies are kept as an earlier version.')}</span>
+        <button type="button" className="btn btn-sm" onClick={cancelEdit}>{t('Cancel')}</button>
+        <button type="button" className="btn btn-sm btn-primary" disabled={!canSave} title="Ctrl+Enter" onClick={() => void saveEdit()}>
+          {t('Save & run')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UserMessage({ message, editable }: { message: StoredMessage; editable: boolean }) {
+  useLocale();
+  const editingThis = usePane((s) => s.editing?.id === message.id);
+  const startEdit = usePane((s) => s.startEdit);
+  const busy = usePane((s) => s.busy);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  // After an edit is cancelled, the keyboard is back where it started.
+  useEffect(() => {
+    if (wasEditing.current && !editingThis) editButton.current?.focus();
+    wasEditing.current = editingThis;
+  }, [editingThis]);
+  if (editingThis) return <MessageEditor />;
   const shown = message.content.flatMap((b) => (b.type === 'text' && !b.hidden ? [b.display ?? b.text] : []));
   const labels = message.content.flatMap((b) => (b.type === 'text' && b.hidden && b.label ? [b.label] : []));
   if (shown.length === 0 && labels.length === 0) return null;
@@ -297,6 +406,21 @@ function UserMessage({ message }: { message: StoredMessage }) {
       {shown.map((text, index) => (
         <div key={index} className="ai-user-text">{text}</div>
       ))}
+      {editable && (
+        <div className="ai-user-foot">
+          <VersionArrows message={message} label={t('Versions of this message')} />
+          <button
+            ref={editButton}
+            type="button"
+            className="link-button small"
+            disabled={busy}
+            title={t('Change this message and run the chat again from here. Up arrow in an empty message box edits your last one.')}
+            onClick={() => startEdit(message.id)}
+          >
+            {t('Edit')}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -560,6 +684,7 @@ function Composer() {
   const send = usePane((s) => s.send);
   const stop = usePane((s) => s.stop);
   const busy = usePane((s) => s.busy);
+  const startEdit = usePane((s) => s.startEdit);
   const profile = usePaneProfile();
   const character = useChatCharacter();
   const canSend = !busy && (draft.trim().length > 0 || chips.length > 0);
@@ -593,6 +718,13 @@ function Composer() {
           if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             if (canSend) void send();
+          } else if (e.key === 'ArrowUp' && !busy && !draft && chips.length === 0) {
+            // As in many chat apps, Up in an empty box edits your last message.
+            const last = [...usePane.getState().messages].reverse().find(isWithWords);
+            if (last) {
+              e.preventDefault();
+              startEdit(last.id);
+            }
           }
         }}
       />
@@ -649,10 +781,21 @@ function Conversation() {
     return map;
   }, [messages]);
 
-  let lastAssistant = -1;
-  messages.forEach((message, index) => {
-    if (message.role === 'assistant') lastAssistant = index;
-  });
+  // A turn is one of the writer's messages and the replies up to the next one. Its last
+  // reply holds the turn's versions and "Regenerate".
+  const turnEnds = useMemo(() => {
+    const ends = new Map<string, TurnEnd>();
+    let question: StoredMessage | null = null;
+    messages.forEach((message, index) => {
+      if (isWithWords(message)) question = message;
+      const next = messages[index + 1];
+      if (question && message.role === 'assistant' && (!next || isWithWords(next))) {
+        const head = messages[messages.indexOf(question) + 1];
+        if (head) ends.set(message.id, { questionId: question.id, head });
+      }
+    });
+    return ends;
+  }, [messages]);
 
   return (
     <div className="ai-conversation-wrap">
@@ -667,11 +810,11 @@ function Conversation() {
             <p className="faint small">{t('Lore relevant to what you ask is included automatically. Open “What is sent” to see it.')}</p>
           </div>
         )}
-        {messages.map((message, index) =>
+        {messages.map((message) =>
           message.role === 'user' ? (
-            <UserMessage key={message.id} message={message} />
+            <UserMessage key={message.id} message={message} editable={isWithWords(message)} />
           ) : (
-            <AssistantMessage key={message.id} message={message} results={results} isLast={index === lastAssistant} />
+            <AssistantMessage key={message.id} message={message} results={results} turnEnd={turnEnds.get(message.id) ?? null} />
           ),
         )}
         <LiveMessage />

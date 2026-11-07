@@ -497,7 +497,6 @@
   "Restore": "Restaurer",
   "Restore “{name}”?": "Restaurer « {name} » ?",
   "Resume": "Reprendre",
-  "Retry": "Réessayer",
   "Review suggestions from AI tools outside LoreCraft": "Examiner les suggestions des outils d’IA extérieurs à LoreCraft",
   "Rewrite in a style…": "Réécrire dans un style…",
   "Rewrite in which style?": "Réécrire dans quel style ?",
@@ -869,5 +868,15 @@
   "Project default": "Par défaut du projet",
   "Set {name} as project default": "Définir {name} par défaut pour le projet",
   "Set as project default (Alt+Enter)": "Définir par défaut pour le projet (Alt+Entrée)",
-  "Set as project default": "Définir par défaut"
+  "Set as project default": "Définir par défaut",
+  "Previous version": "Version précédente",
+  "{number} of {count}": "{number} sur {count}",
+  "Next version": "Version suivante",
+  "Versions of this reply": "Versions de cette réponse",
+  "Ask for this reply again. This one is kept as an earlier version.": "Redemander cette réponse. Celle-ci est gardée comme version précédente.",
+  "Edit your message": "Modifiez votre message",
+  "Later replies are kept as an earlier version.": "Les réponses suivantes sont gardées comme version précédente.",
+  "Save & run": "Enregistrer et lancer",
+  "Versions of this message": "Versions de ce message",
+  "Change this message and run the chat again from here. Up arrow in an empty message box edits your last one.": "Modifiez ce message et relancez la discussion à partir d’ici. La flèche haut dans une zone de message vide modifie le dernier."
 }

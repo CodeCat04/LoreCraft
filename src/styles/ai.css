@@ -225,6 +225,14 @@
 .ai-message-foot { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
 .ai-usage { font-size: 0.75rem; }
 
+/* Editing a message in place, and stepping between versions of a turn. */
+.ai-user-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.5rem; margin-top: 0.25rem; }
+.ai-message-user.is-editing { align-self: stretch; max-width: none; display: grid; gap: 0.375rem; }
+.ai-edit-input { resize: vertical; min-height: 3.25rem; max-height: 40vh; }
+.ai-edit-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.25rem; }
+.ai-turn-versions { display: inline-flex; align-items: center; gap: 0.125rem; color: var(--text-muted); font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.ai-turn-versions .icon-btn { padding: 0 0.25rem; min-width: 1.25rem; }
+
 .ai-error { padding: 0.5rem 0.625rem; border: 1px solid var(--danger); border-radius: 0.375rem; background: var(--surface-2); display: grid; gap: 0.375rem; overflow-wrap: anywhere; }
 .ai-error-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; }
 
