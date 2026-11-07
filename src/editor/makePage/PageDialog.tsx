@@ -27,6 +27,8 @@ export interface NewPageChoice {
 export interface NewPageOptions {
   heading: string;
   initialTitle: string;
+  /** The page type to start with. The last one used, if left out. */
+  initialType?: string;
   confirmLabel: string;
   /** How many other mentions could be linked. With more than zero, offers to. */
   mentions?: number;
@@ -41,12 +43,12 @@ export interface NewPageOptions {
 let lastType = DEFAULT_TYPE;
 
 function PageForm(props: NewPageOptions & { close: (page: Page | null) => void }) {
-  const { heading, initialTitle, confirmLabel, mentions = 0, offerDraft = false, useExisting, create, close } = props;
+  const { heading, initialTitle, initialType, confirmLabel, mentions = 0, offerDraft = false, useExisting, create, close } = props;
   useLocale();
   const [title, setTitle] = useState(initialTitle);
   const types = usePageTypes((s) => s.types);
   // The last type may have been deleted since it was used.
-  const [type, setType] = useState(() => templateFor(lastType).type);
+  const [type, setType] = useState(() => templateFor(initialType ?? lastType).type);
   const [alsoLink, setAlsoLink] = useState(false);
   const [draftWithAi, setDraftWithAi] = useState(false);
   const [busy, setBusy] = useState(false);

@@ -8,9 +8,114 @@ import { confirm } from '../shell/dialogs';
 import { toast } from '../shell/toasts';
 import { useDataVersion } from '../state/events';
 import { useLocale } from '../state/language';
+import * as coreApi from '../lib/api';
 import * as api from './api';
+import { planPromptImport, PromptFileError, promptFileName, promptFileText, readPromptFile, type PlannedPrompt, type ReadPromptFile } from './promptFiles';
 import { usePane } from './store';
 import type { PromptAction, PromptScope, PromptTemplate } from './types';
+
+// ---------------------------------------------------------------------------
+// Prompt files: export one, export all custom, and import with a preview.
+// ---------------------------------------------------------------------------
+
+const fileFilters = () => [{ name: t('LoreCraft prompts'), extensions: ['json'] }];
+
+async function exportPromptsToFile(list: PromptTemplate[], defaultName: string): Promise<void> {
+  try {
+    const path = await coreApi.files.pickSave({ title: t('Export prompts'), defaultName, filters: fileFilters() });
+    if (!path) return;
+    await coreApi.files.writeText(path, promptFileText(list));
+    toast(list.length === 1 ? t('Exported 1 prompt.') : t('Exported {count} prompts.', { count: list.length }), 'success');
+  } catch (e) {
+    toast(errorMessage(e), 'error');
+  }
+}
+
+function fileErrorMessage(e: unknown): string {
+  if (e instanceof PromptFileError) {
+    if (e.message === 'newer') return t('This prompt file was made by a newer LoreCraft. Update LoreCraft to import it.');
+    return t('This is not a LoreCraft prompt file.');
+  }
+  return errorMessage(e);
+}
+
+function problemMessage(problem: ReadPromptFile['problems'][number]): string {
+  const which = problem.name ? t('Prompt {number} (“{name}”)', { number: problem.index, name: problem.name }) : t('Prompt {number}', { number: problem.index });
+  switch (problem.message) {
+    case 'no-name':
+      return t('{which} has no name, so it is left out.', { which });
+    case 'no-text':
+      return t('{which} has no text, so it is left out.', { which });
+    case 'bad-scope':
+      return t('{which} has an unknown "scope", so it is left out.', { which });
+    case 'bad-action':
+      return t('{which} has an unknown "action", so it is left out.', { which });
+    case 'too-many':
+      return t('The file has more than 500 prompts. Only the first 500 are read.');
+    default:
+      return t('{which} is not a prompt, so it is left out.', { which });
+  }
+}
+
+interface ImportPreview {
+  fileName: string;
+  plan: PlannedPrompt[];
+  problems: ReadPromptFile['problems'];
+}
+
+function outcomeLabel(item: PlannedPrompt): string {
+  if (item.outcome === 'skip') return t('Already in this project. Skipped.');
+  if (item.outcome === 'rename') return t('A different prompt has this name, so it is added as “{name}”.', { name: item.name });
+  return t('Added.');
+}
+
+function ImportPreviewPanel({ preview, onDone }: { preview: ImportPreview; onDone: () => void }) {
+  useLocale();
+  const [busy, setBusy] = useState(false);
+  const toAdd = preview.plan.filter((item) => item.outcome !== 'skip');
+  const run = async () => {
+    setBusy(true);
+    let added = 0;
+    try {
+      for (const item of toAdd) {
+        const { description, template, scope, action } = item.entry;
+        await api.prompts.save({ name: item.name, description, template, scope, action });
+        added += 1;
+      }
+      toast(added === 1 ? t('Imported 1 prompt.') : t('Imported {count} prompts.', { count: added }), 'success');
+    } catch (e) {
+      toast(`${t('Imported {count} prompts.', { count: added })} ${errorMessage(e)}`, 'error');
+    }
+    onDone();
+  };
+  return (
+    <section className="ai-prompt-import" aria-labelledby="ai-prompt-import-title" data-testid="ai-prompt-import">
+      <h3 id="ai-prompt-import-title" className="ai-prompt-name">{t('Import prompts from {file}', { file: preview.fileName })}</h3>
+      {preview.plan.length === 0 && <p className="muted small">{t('There are no prompts to import in this file.')}</p>}
+      <ul className="ai-prompt-list">
+        {preview.plan.map((item, index) => (
+          <li key={index} className={`ai-prompt-item${item.outcome === 'skip' ? ' is-skipped' : ''}`}>
+            <div className="ai-prompt-name">{item.entry.name}</div>
+            <div className="faint small">{outcomeLabel(item)}</div>
+          </li>
+        ))}
+      </ul>
+      {preview.problems.length > 0 && (
+        <ul className="ai-prompt-problems small" aria-label={t('Problems')}>
+          {preview.problems.map((problem, index) => (
+            <li key={index} className="field-error">{problemMessage(problem)}</li>
+          ))}
+        </ul>
+      )}
+      <div className="dialog-actions">
+        <button type="button" className="btn btn-sm" onClick={onDone}>{t('Cancel')}</button>
+        <button type="button" className="btn btn-sm btn-primary" autoFocus disabled={busy || toAdd.length === 0} onClick={() => void run()}>
+          {toAdd.length === 1 ? t('Import 1 prompt') : t('Import {count} prompts', { count: toAdd.length })}
+        </button>
+      </div>
+    </section>
+  );
+}
 
 /** Built when shown, so the labels follow the interface language. */
 const scopes = (): { id: PromptScope; label: string }[] => [
@@ -109,6 +214,7 @@ export function PromptLibrary() {
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
   const [scope, setScope] = useState<PromptScope | 'all'>('all');
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [importing, setImporting] = useState<ImportPreview | null>(null);
   const setDraft = usePane((s) => s.setDraft);
   const setView = usePane((s) => s.setView);
 
@@ -116,6 +222,34 @@ export function PromptLibrary() {
     void api.prompts.list().then(setPrompts).catch(() => {});
   }, []);
   useEffect(load, [load, version]);
+
+  const custom = prompts.filter((prompt) => !prompt.builtin);
+  const pickImport = async () => {
+    try {
+      const [path] = await coreApi.files.pickOpen({ title: t('Import prompts'), filters: fileFilters() });
+      if (!path) return;
+      const { text } = await coreApi.files.readText(path);
+      const read = readPromptFile(text);
+      const current = await api.prompts.list();
+      setImporting({ fileName: path.split(/[\\/]/).pop() ?? path, plan: planPromptImport(read.prompts, current), problems: read.problems });
+    } catch (e) {
+      toast(fileErrorMessage(e), 'error');
+    }
+  };
+
+  if (importing) {
+    return (
+      <div className="ai-prompts">
+        <ImportPreviewPanel
+          preview={importing}
+          onDone={() => {
+            setImporting(null);
+            load();
+          }}
+        />
+      </div>
+    );
+  }
 
   if (editing) {
     return (
@@ -150,6 +284,20 @@ export function PromptLibrary() {
           {t('New prompt')}
         </button>
       </div>
+      <div className="ai-prompt-row ai-prompt-files" role="group" aria-label={t('Prompt files')}>
+        <button type="button" className="btn btn-sm" onClick={() => void pickImport()}>
+          {t('Import…')}
+        </button>
+        <button
+          type="button"
+          className="btn btn-sm"
+          disabled={custom.length === 0}
+          title={custom.length === 0 ? t('You have no prompts of your own yet.') : undefined}
+          onClick={() => void exportPromptsToFile(custom, 'lorecraft-prompts.json')}
+        >
+          {t('Export all custom…')}
+        </button>
+      </div>
       <ul className="ai-prompt-list">
         {shown.map((prompt) => (
           <li key={prompt.id} className="ai-prompt-item">
@@ -178,6 +326,14 @@ export function PromptLibrary() {
                 }
               >
                 {t('Edit')}
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm"
+                aria-label={t('Export “{name}”', { name: prompt.name })}
+                onClick={() => void exportPromptsToFile([prompt], promptFileName(prompt.name))}
+              >
+                {t('Export…')}
               </button>
               <button
                 type="button"

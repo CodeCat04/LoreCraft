@@ -58,9 +58,9 @@ Ideas from comparing LoreCraft with other AI writing tools. Everything uses the 
 - [ ] Tick the ones you like and insert them, or ask for more. Insertions are tracked changes. It uses the lore: what a place smells like, what a character wears.
 
 ## 9. Brainstorm board
-- [ ] A Brainstorm view (AI menu and Ctrl+K) with categories: character names, place names, plot twists, what happens next, conflicts, world details, titles, objects, dialogue lines, character traits, and your own question.
-- [ ] Unlike other tools, it reads the wiki and the book, so its ideas fit the world.
-- [ ] Each idea can be kept or discarded, and "more like this" asks for more. Kept ideas go to the Inbox or straight to a new page.
+- [x] A Brainstorm view (AI menu and Ctrl+K) with categories: character names, place names, plot twists, what happens next, conflicts, world details, titles, objects, dialogue lines, character traits, and your own question.
+- [x] Unlike other tools, it reads the wiki and the book, so its ideas fit the world.
+- [x] Each idea can be kept or discarded, and "more like this" asks for more. Kept ideas go to the Inbox or straight to a new page.
 
 ## 10. Story planning wizard
 - [ ] A step-by-step **Plan a story** wizard: Braindump, then Synopsis, Characters, World, Outline and Scenes. The AI suggests at each step, and you edit, skip or go back.
@@ -69,4 +69,4 @@ Ideas from comparing LoreCraft with other AI writing tools. Everything uses the 
 - [ ] Progress is saved, so the wizard can be left and resumed.
 
 ## 11. Share prompts as files
-- [ ] Export one or all custom prompts from the prompt library to a file, and import prompts from a file (with a preview, and no duplicates).
+- [x] Export one or all custom prompts from the prompt library to a file, and import prompts from a file (with a preview, and no duplicates).

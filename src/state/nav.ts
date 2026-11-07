@@ -58,6 +58,7 @@ export type Route =
   | { view: 'export' }
   | { view: 'import' }
   | { view: 'proposals' }
+  | { view: 'brainstorm' }
   | { view: 'styles'; tab?: string }
   | { view: 'publishing'; bookId?: string }
   | { view: 'settings'; tab?: string }
@@ -224,6 +225,7 @@ export function areaOf(route: Route): Area {
     case 'export':
     case 'import':
     case 'proposals':
+    case 'brainstorm':
     case 'styles':
     case 'publishing':
     case 'settings':

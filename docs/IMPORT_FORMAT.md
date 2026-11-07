@@ -563,6 +563,40 @@ Word's Caption style.
 **Plain text.** As a wiki page or a scene. Text in any common encoding works. Blank lines
 separate paragraphs.
 
+## Prompt files
+
+Saved AI prompts can be shared as their own small file, apart from a project export. In the
+AI pane's Prompts tab, **Export…** on a prompt saves that one, **Export all custom…** saves
+every prompt you made or imported, and **Import…** reads a file back. Built-in prompts are not
+in "Export all custom", since every project has them.
+
+```json
+{
+  "lorecraft_prompts": 1,
+  "prompts": [
+    {
+      "name": "Darker",
+      "description": "More shadow",
+      "template": "Make this darker:\n\n{{selection}}",
+      "scope": "selection",
+      "action": "replace"
+    }
+  ]
+}
+```
+
+- `lorecraft_prompts` is the version of the format. A file from a newer version is refused.
+- `name` and `template` are required. `description` is optional.
+- `scope` is `selection`, `page`, `scene` or `chat`. `action` is `replace`, `insert`, `chat`
+  or `metadata`. Without an `action`, a chat prompt answers in the pane and the others replace
+  the text.
+- The template can use `{{selection}}`, `{{page}}` and `{{book}}`.
+
+Import shows what will happen before anything is saved. A prompt the project already has,
+with the same name and text, is skipped. A prompt whose name is taken by a different one is
+added as "Name (2)". A prompt with a missing name or text, or an unknown scope or action, is
+left out and listed. At most 500 prompts are read from one file.
+
 ## What the other exports contain
 
 These describe the exports that cannot be imported back, for anyone reading them with

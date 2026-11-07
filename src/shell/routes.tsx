@@ -5,6 +5,7 @@ import * as consistency from '../consistency';
 import * as extras from '../extras';
 import * as exporters from '../exporters';
 import { ProposalsView } from '../mcp';
+import { BrainstormView } from '../brainstorm';
 import * as inbox from '../inbox';
 import { CanvasView } from '../canvas';
 import { NotesView } from '../notes';
@@ -65,6 +66,8 @@ export function RouteView({ route }: { route: Route }) {
       return <exporters.ImportView />;
     case 'proposals':
       return <ProposalsView />;
+    case 'brainstorm':
+      return <BrainstormView />;
     case 'styles':
       return <StylesView tab={route.tab} />;
     case 'publishing':
