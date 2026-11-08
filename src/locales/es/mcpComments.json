@@ -1,0 +1,11 @@
+{
+  "A to-do on {title}": "Una tarea en {title}",
+  "A comment on {title}": "Un comentario en {title}",
+  "On: “{quote}”": "Sobre: «{quote}»",
+  "Resolve a comment on {title}": "Resolver un comentario en {title}",
+  "Open a comment on {title} again": "Volver a abrir un comentario en {title}",
+  "The quoted words are no longer in the text.": "Las palabras citadas ya no están en el texto.",
+  "That comment is already like that.": "Ese comentario ya está así.",
+  "Comment added.": "Comentario añadido.",
+  "Comment changed.": "Comentario cambiado."
+}

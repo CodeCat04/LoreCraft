@@ -64,6 +64,9 @@ pub struct Ctx<'a> {
     pub permission: Option<String>,
     /// The writer shares local-only content with outside tools.
     pub shares_local_only: bool,
+    /// The writer's own writing styles, from the app settings, when the app is answering.
+    /// None for a saved file. See `areas::styles`.
+    pub custom_styles: Option<Value>,
     hidden_pages: HashSet<String>,
     hidden_nodes: HashSet<String>,
     /// Chapters, parts and books holding something hidden. A summary of one may retell it.
@@ -113,6 +116,7 @@ impl<'a> Ctx<'a> {
             live,
             permission: None,
             shares_local_only: share_local_only,
+            custom_styles: None,
             hidden_pages,
             hidden_nodes,
             holds_hidden,

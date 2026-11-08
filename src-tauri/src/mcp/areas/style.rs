@@ -55,15 +55,41 @@ pub fn tools() -> Vec<Tool> {
         ),
         write(
             "set_style_guide",
-            "Change the project's style guide, the writer's own rules that every AI follows. Give text for free-form rules, or any of the named fields. mode replace sets them; append adds to what is there. Fields you leave out stay as they are. At the edit level the change is made at once and the writer can undo it; otherwise the writer reviews it under Outside suggestions. Needs LoreCraft to be open with this project.",
+            format!("Change the project's style guide, the writer's own rules that every AI follows. Give text for free-form rules, or any of the named fields: {}. get_style_guide shows them. mode replace sets them; append adds to what is there. Fields you leave out stay as they are. At the edit level the change is made at once and the writer can undo it; otherwise the writer reviews it under Outside suggestions. Needs LoreCraft to be open with this project.", FIELDS.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", ")),
             json!({ "type": "object", "properties": properties }),
             set_style_guide,
         ),
     ]
 }
 
+/// Each named field, as set_style_guide takes it, then what the AI is given.
 fn get_style_guide(ctx: &Ctx, _args: &Value) -> AppResult<String> {
-    Ok(tools::style_guide(ctx.conn)?.unwrap_or_else(|| "This project has no style guide yet.".to_string()))
+    let fields = project_guide(ctx)?;
+    let resolved = tools::style_guide(ctx.conn)?;
+    let set: Vec<String> = FIELDS
+        .iter()
+        .filter_map(|(name, about)| {
+            let value = fields.get(*name).and_then(Value::as_str).unwrap_or("").trim();
+            let about = about.split([',', '.', ':']).next().unwrap_or(about);
+            (!value.is_empty()).then(|| format!("## {name} ({about})\n{value}\n"))
+        })
+        .collect();
+    if set.is_empty() && resolved.is_none() {
+        return Ok("This project has no style guide yet. set_style_guide can add one.".to_string());
+    }
+    let mut out = String::from("# Style guide\nThe project's fields, by the names set_style_guide takes. Fields not shown are not set.\n\n");
+    if set.is_empty() {
+        out.push_str("No field is set.\n");
+    }
+    for field in set {
+        out.push_str(&field);
+        out.push('\n');
+    }
+    if let Some(text) = resolved {
+        out.push_str("# What every AI in LoreCraft is given\nThe guide with the project's default writing style, if it has one.\n\n");
+        out.push_str(&text);
+    }
+    Ok(out)
 }
 
 /// The project's own fields, as stored. Missing or damaged reads as empty.
@@ -88,7 +114,8 @@ fn set_style_guide(cx: &WriteCx, args: &Value) -> AppResult<Draft> {
     }
     for (name, _) in FIELDS {
         if let Some(value) = args.get(*name).and_then(Value::as_str) {
-            if *name == "voice" && !given.is_empty() {
+            // Only text comes before the fields, so a voice already given came from text.
+            if *name == "voice" && given.first().is_some_and(|(n, _)| *n == "voice") {
                 // text and voice both name the voice notes, so they go in together.
                 let joined = format!("{}\n\n{}", given[0].1, value.trim());
                 given[0].1 = joined.trim().to_string();

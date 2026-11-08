@@ -107,7 +107,7 @@ Reading:
 | `get_timeline` | Dated scenes and pages |
 | `get_relationships` | Recorded relationships between pages |
 | `list_findings` | Consistency findings and their evidence |
-| `get_style_guide` | The project's style guide, if it has one |
+| `get_style_guide` | The project's style guide, if it has one: each field by the name `set_style_guide` takes, then the text every AI is given |
 | `get_settings_overview` | What the tool may do here: the permission level, whether local-only content is shared, and the project's language. It cannot change them |
 | `list_canvases` | The project's canvases, by title |
 | `get_canvas` | One canvas: an outline of its cards, then its JSON Canvas data |
@@ -117,6 +117,11 @@ Reading:
 | `list_page_types` | The page types in use and your own types, with the infobox fields (label, key, kind) each one uses |
 | `get_page_history` | A page's saved versions in History, newest first |
 | `list_maps` | Your maps and their pins, with each pin's id, page or label, and position |
+| `list_writing_styles` | The writing styles, built-in and your own, with ids, and the style the project and each book use. Your own styles show only while the app is open |
+| `get_writing_style` | One writing style: its description and the prompt the AI is given |
+| `list_prompts` | The prompt library, built-in and your own, with ids, scope, action and text |
+| `list_ideas` | Your idea inbox, newest first, with ids and status |
+| `list_comments` | The comments on a page or scene: author, words, the passage, resolved or not |
 
 Every page's status is stated, and the tool descriptions explain them:
 
@@ -139,7 +144,6 @@ Changing things, with the app open (see [Permission levels](#permission-levels))
 | `propose_scene_details` | Suggests changes to a scene's title, synopsis, point of view, location, cast, status, story date or notes |
 | `propose_new_page` | Suggests a new page, from a title, type, Markdown body and infobox fields |
 | `set_style_guide` | Replaces or adds to the project's style guide: free-form `text` (kept as voice notes) or any field, with `mode` `replace` or `append` |
-| `add_idea` | Adds a short idea to your idea inbox, marked with the tool it came from. It changes no page or scene |
 | `create_book` | Creates a book, with a first chapter and scene, and its settings. Undo moves it to the trash while nothing has been written in it |
 | `update_book` | Changes a book's title, subtitle, author, word goal, point of view, tense or default writing style, through the same stores as Book settings |
 | `move_node` | Moves a scene, chapter or part `before` or `after` another, or `into` a chapter or part (or `book`) at a `position`. Refused for a node holding local-only scenes |
@@ -161,6 +165,19 @@ Changing things, with the app open (see [Permission levels](#permission-levels))
 | `add_map_pin` / `move_map_pin` / `remove_map_pin` | Adds, moves or removes a pin on a map, for a page or a label |
 
 The wiki tools never touch a local-only page, even when you share local-only content: it cannot be changed, renamed or trashed from outside. Timeline dates are infobox `date` fields and scene story dates, so they are set with `set_infobox_fields` and `propose_scene_details`.
+| `add_idea` | Adds a short idea to your idea inbox, marked with the tool it came from. It changes no page or scene. Below the edit level it is added at once, as before; at the edit level it shows under Applied by outside AI, with Undo |
+| `create_writing_style` | Creates one of your own writing styles, from a name with a prompt or traits, or as a blend of two or three styles |
+| `update_writing_style` | Changes one of your own writing styles. Built-in styles cannot be changed |
+| `delete_writing_style` | Deletes one of your own writing styles. Projects that use it keep their copy; Undo brings it back |
+| `set_default_style` | Sets or clears the default style for the project, a book or a scene. A scene's choice wins over its book's, and a book's over the project's |
+| `create_prompt` | Adds a prompt of your own to the prompt library |
+| `update_prompt` | Changes one of your own prompts. Built-in prompts cannot be changed; Restore in the app is yours alone |
+| `delete_prompt` | Deletes one of your own prompts. Undo makes it again |
+| `update_idea` | Changes the text of an idea in your inbox |
+| `resolve_idea` | Marks an idea done, or open again |
+| `idea_to_page` | Turns an idea into a new page with status idea, the way the Inbox does, and marks the idea done |
+| `add_comment` | Adds a comment, or a to-do, on a quoted passage of a page or scene. The text does not change |
+| `resolve_comment` | Marks a comment resolved, or open again. The app has no replies, so there is no reply tool |
 
 Pages are also offered as MCP resources (`lorecraft://page/<id>`), and there is a `catch_up` prompt.
 

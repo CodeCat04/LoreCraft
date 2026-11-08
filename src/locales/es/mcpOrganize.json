@@ -1,0 +1,23 @@
+{
+  "A new idea for the inbox": "Una idea nueva para la bandeja de ideas",
+  "Change to an idea": "Cambio en una idea",
+  "Mark an idea as done": "Marcar una idea como hecha",
+  "Open an idea again": "Abrir de nuevo una idea",
+  "Turn an idea into the page {title}": "Convertir una idea en la página {title}",
+  "The idea has changed since this was suggested.": "La idea ha cambiado desde que se sugirió esto.",
+  "The idea is already like that.": "La idea ya está así.",
+  "Idea added to the inbox.": "Idea añadida a la bandeja de ideas.",
+  "Idea changed.": "Idea cambiada.",
+  "Page created from the idea.": "Página creada a partir de la idea.",
+  "Selection menu": "Menú de selección",
+  "Wiki pages": "Páginas de la wiki",
+  "Shows in": "Aparece en",
+  "New prompt: {name}": "Prompt nuevo: {name}",
+  "Change to the prompt {name}": "Cambio en el prompt {name}",
+  "Delete the prompt {name}": "Eliminar el prompt {name}",
+  "Built-in prompts cannot be changed by outside tools.": "Las herramientas externas no pueden cambiar los prompts integrados.",
+  "The prompt has changed since this was suggested.": "El prompt ha cambiado desde que se sugirió esto.",
+  "Prompt added.": "Prompt añadido.",
+  "Prompt changed.": "Prompt cambiado.",
+  "Prompt deleted.": "Prompt eliminado."
+}

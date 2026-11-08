@@ -12,6 +12,10 @@ import { styleGuideKind } from './styleGuide';
 import { STRUCTURE_KINDS } from './structure';
 import { editKind, insertKind, rewriteKind } from './text';
 import { WIKI_KINDS } from './wiki';
+import { stylesKinds } from './styles';
+import { promptsKinds } from './prompts';
+import { ideasKinds } from './ideas';
+import { commentsKinds } from './comments';
 
 export const KINDS: ProposalKind[] = [
   editKind,
@@ -24,6 +28,10 @@ export const KINDS: ProposalKind[] = [
   styleGuideKind,
   ...STRUCTURE_KINDS,
   ...WIKI_KINDS,
+  ...stylesKinds,
+  ...promptsKinds,
+  ...ideasKinds,
+  ...commentsKinds,
 ];
 
 const byName = new Map(KINDS.map((kind) => [kind.kind, kind]));
