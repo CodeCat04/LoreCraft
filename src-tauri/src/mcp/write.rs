@@ -155,7 +155,14 @@ fn wait(engine: &Engine, id: &str, draft: &Draft, waits: Waits) -> AppResult<Str
         };
         let elapsed = started.elapsed();
         match status.as_str() {
-            STATUS_APPLIED | "accepted" => return Ok(format!("Done: {}", draft.done)),
+            STATUS_APPLIED | "accepted" => {
+                // What the app found while applying it, such as a check's summary.
+                let report = payload["undo"]["report"].as_str().map(str::trim).filter(|r| !r.is_empty());
+                return Ok(match report {
+                    Some(report) => format!("Done: {} {report}", draft.done),
+                    None => format!("Done: {}", draft.done),
+                });
+            }
             STATUS_FAILED => {
                 let reason = payload["error"].as_str().unwrap_or("it could not be applied.");
                 return Err(AppError::new("NOT_APPLIED", format!("Nothing changed: {reason}")));

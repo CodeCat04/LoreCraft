@@ -129,3 +129,11 @@ The writer asked whether the outside AI could update the style guide and more. T
 - [x] Comments: `list_comments`, `add_comment` on a quoted passage (the mark appears in an open editor), `resolve_comment`. The app has no replies, so there is no `reply_comment`.
 - [x] Local-only pages and scenes, and ideas captured in them, stay hidden and are refused unless shared.
 - Code: src-tauri/src/mcp/areas/styles.rs, prompts.rs, ideas.rs, comments.rs; src/mcp/kinds/styles.tsx, prompts.tsx, ideas.tsx, comments.tsx; e2e/mcp-organize.test.mjs.
+## 17. MCP: canvases, consistency checks and media
+The writer wants an outside AI to arrange canvases, run the checks and describe pictures, not only read them.
+- [x] `create_canvas`, `rename_canvas`, `trash_canvas` (the canvas trash; Undo restores) and `edit_canvas`: a list of operations (add a text, page or scene card or a group, move, resize, edit text, remove, connect with an optional label, disconnect, color), cards and arrows named by id or by what they show, new cards placed beside related ones without overlaps. Applied through the open board (`src/canvas/live.ts`), so it updates live and joins the board's own undo; Undo restores the canvas data.
+- [x] `run_consistency_check` (the rule checks, run by the app, with a summary in the reply; AI checks stay with the writer), `dismiss_finding` (ignored or intentional) and `resolve_finding` (fixed), each with Undo. `list_findings` shows each finding's id.
+- [x] `list_media` (id, kind, label, description, where used) and `label_media` (the library label and alt text, with Undo). No file imports.
+- [x] Local-only pages and scenes stay hidden and refused: their canvas cards are counted as hidden in `get_canvas` and cannot be named, added or removed; media used only there is left out; findings quoting them cannot be changed.
+- [x] Tests: Rust per tool (success, missing target, local only, suggest level, edit level), TS apply and undo, E2E `e2e/mcp-canvas.test.mjs`.
+- Code: src-tauri/src/mcp/areas/canvas.rs, checks.rs, media.rs; src/mcp/kinds/canvas.tsx, checks.tsx, media.tsx; src/canvas/live.ts.

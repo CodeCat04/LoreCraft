@@ -16,6 +16,9 @@ import { stylesKinds } from './styles';
 import { promptsKinds } from './prompts';
 import { ideasKinds } from './ideas';
 import { commentsKinds } from './comments';
+import { canvasCreateKind, canvasEditKind, canvasRenameKind, canvasTrashKind } from './canvas';
+import { consistencyRunKind, findingStatusKind } from './checks';
+import { mediaLabelKind } from './media';
 
 export const KINDS: ProposalKind[] = [
   editKind,
@@ -32,6 +35,13 @@ export const KINDS: ProposalKind[] = [
   ...promptsKinds,
   ...ideasKinds,
   ...commentsKinds,
+  canvasCreateKind,
+  canvasRenameKind,
+  canvasTrashKind,
+  canvasEditKind,
+  consistencyRunKind,
+  findingStatusKind,
+  mediaLabelKind,
 ];
 
 const byName = new Map(KINDS.map((kind) => [kind.kind, kind]));

@@ -92,6 +92,9 @@ areas! {
     prompts,
     ideas,
     comments,
+    canvas,
+    checks,
+    media,
 }
 
 pub fn find(name: &str) -> Option<Tool> {

@@ -122,6 +122,7 @@ Reading:
 | `list_prompts` | The prompt library, built-in and your own, with ids, scope, action and text |
 | `list_ideas` | Your idea inbox, newest first, with ids and status |
 | `list_comments` | The comments on a page or scene: author, words, the passage, resolved or not |
+| `list_media` | Pictures, videos and other media: id, kind, label, description (alt text) and the pages, scenes, maps and canvases using each. Media used only in local-only pages or scenes is left out |
 
 Every page's status is stated, and the tool descriptions explain them:
 
@@ -178,6 +179,14 @@ The wiki tools never touch a local-only page, even when you share local-only con
 | `idea_to_page` | Turns an idea into a new page with status idea, the way the Inbox does, and marks the idea done |
 | `add_comment` | Adds a comment, or a to-do, on a quoted passage of a page or scene. The text does not change |
 | `resolve_comment` | Marks a comment resolved, or open again. The app has no replies, so there is no reply tool |
+| `create_canvas` | Makes a new, empty canvas. Undo moves it to the trash |
+| `rename_canvas` | Renames a canvas. Undo puts the old title back |
+| `trash_canvas` | Moves a canvas to the trash. Undo restores it |
+| `edit_canvas` | Changes a canvas's cards and arrows as one change: add a text, page or scene card or a group, move, resize, edit text, remove, connect with an arrow and label, disconnect, color. Cards are named by id or by what they show; new cards go beside related ones without overlapping. It goes through the open canvas, so it shows at once; Undo puts the canvas back as it was. Cards for local-only pages and scenes cannot be named or added |
+| `run_consistency_check` | Runs the rule checks in the app and answers with a summary of the open findings. AI checks are left to you, since they use your AI. Undo puts the findings' statuses back |
+| `dismiss_finding` | Marks a finding as ignored or intentional. Undo reopens it |
+| `resolve_finding` | Marks a finding as fixed. Undo reopens it |
+| `label_media` | Sets a picture or video's label and description in the media library. Figures with their own caption keep it. Undo puts the old words back |
 
 Pages are also offered as MCP resources (`lorecraft://page/<id>`), and there is a `catch_up` prompt.
 
