@@ -85,6 +85,9 @@ areas! {
     text_edits,
     book_edits,
     lore_edits,
+    canvas,
+    checks,
+    media,
 }
 
 pub fn find(name: &str) -> Option<Tool> {

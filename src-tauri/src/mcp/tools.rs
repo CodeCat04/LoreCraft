@@ -1154,7 +1154,7 @@ pub(crate) fn list_findings(ctx: &Ctx, args: &Value) -> AppResult<String> {
     let status = arg_str(args, "status").unwrap_or("open");
     let limit = arg_usize(args, "limit").unwrap_or(100).clamp(1, 1000);
     let mut stmt = ctx.conn.prepare(
-        "SELECT severity, status, title, detail, evidence, source FROM findings
+        "SELECT severity, status, title, detail, evidence, source, id FROM findings
          WHERE (?1 = 'all' OR status = ?1)
          ORDER BY CASE severity WHEN 'error' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, updated_at DESC",
     )?;
@@ -1166,13 +1166,14 @@ pub(crate) fn list_findings(ctx: &Ctx, args: &Value) -> AppResult<String> {
             r.get::<_, String>(3)?,
             r.get::<_, String>(4)?,
             r.get::<_, String>(5)?,
+            r.get::<_, String>(6)?,
         ))
     })?;
     let mut out = String::new();
     let mut count = 0;
     let mut more = false;
     for row in rows {
-        let (severity, finding_status, title, detail, evidence, source) = row?;
+        let (severity, finding_status, title, detail, evidence, source, finding_id) = row?;
         let evidence: Value = serde_json::from_str(&evidence).unwrap_or_else(|_| json!([]));
         let items = evidence.as_array().map(Vec::as_slice).unwrap_or(&[]);
         // A finding quotes its sources, so one built on something hidden stays hidden.
@@ -1193,7 +1194,7 @@ pub(crate) fn list_findings(ctx: &Ctx, args: &Value) -> AppResult<String> {
         }
         count += 1;
         out.push_str(&format!(
-            "- {severity}, {finding_status}, found by {source}: {title}\n"
+            "- {severity}, {finding_status}, found by {source}: {title} (id {finding_id})\n"
         ));
         if !detail.trim().is_empty() {
             out.push_str(&format!("  {}\n", detail.trim()));

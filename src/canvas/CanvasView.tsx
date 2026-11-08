@@ -48,6 +48,7 @@ import {
   type Viewport,
 } from './geometry';
 import { History } from './history';
+import { registerBoard } from './live';
 import {
   edgeEnds,
   formatRef,
@@ -184,6 +185,12 @@ function Board({ canvas }: { canvas: Canvas }) {
       setTick((n) => n + 1);
     },
     [saver],
+  );
+
+  // Changes from elsewhere, such as an outside AI's, go through this board while it is open.
+  useEffect(
+    () => registerBoard(canvas.id, { data: () => dataRef.current, commit: (next) => commit(next), flush: () => saver.flush() }),
+    [canvas.id, commit, saver],
   );
 
   const undo = useCallback(() => {

@@ -10,6 +10,9 @@ import { newChapterKind, newSceneKind } from './newScene';
 import { sceneDetailsKind } from './sceneDetails';
 import { styleGuideKind } from './styleGuide';
 import { editKind, insertKind, rewriteKind } from './text';
+import { canvasCreateKind, canvasEditKind, canvasRenameKind, canvasTrashKind } from './canvas';
+import { consistencyRunKind, findingStatusKind } from './checks';
+import { mediaLabelKind } from './media';
 
 export const KINDS: ProposalKind[] = [
   editKind,
@@ -20,6 +23,13 @@ export const KINDS: ProposalKind[] = [
   newChapterKind,
   sceneDetailsKind,
   styleGuideKind,
+  canvasCreateKind,
+  canvasRenameKind,
+  canvasTrashKind,
+  canvasEditKind,
+  consistencyRunKind,
+  findingStatusKind,
+  mediaLabelKind,
 ];
 
 const byName = new Map(KINDS.map((kind) => [kind.kind, kind]));

@@ -111,6 +111,7 @@ Reading:
 | `get_settings_overview` | What the tool may do here: the permission level, whether local-only content is shared, and the project's language. It cannot change them |
 | `list_canvases` | The project's canvases, by title |
 | `get_canvas` | One canvas: an outline of its cards, then its JSON Canvas data |
+| `list_media` | Pictures, videos and other media: id, kind, label, description (alt text) and the pages, scenes, maps and canvases using each. Media used only in local-only pages or scenes is left out |
 
 Every page's status is stated, and the tool descriptions explain them:
 
@@ -134,6 +135,14 @@ Changing things, with the app open (see [Permission levels](#permission-levels))
 | `propose_new_page` | Suggests a new page, from a title, type, Markdown body and infobox fields |
 | `set_style_guide` | Replaces or adds to the project's style guide: free-form `text` (kept as voice notes) or any field, with `mode` `replace` or `append` |
 | `add_idea` | Adds a short idea to your idea inbox, marked with the tool it came from. It changes no page or scene |
+| `create_canvas` | Makes a new, empty canvas. Undo moves it to the trash |
+| `rename_canvas` | Renames a canvas. Undo puts the old title back |
+| `trash_canvas` | Moves a canvas to the trash. Undo restores it |
+| `edit_canvas` | Changes a canvas's cards and arrows as one change: add a text, page or scene card or a group, move, resize, edit text, remove, connect with an arrow and label, disconnect, color. Cards are named by id or by what they show; new cards go beside related ones without overlapping. It goes through the open canvas, so it shows at once; Undo puts the canvas back as it was. Cards for local-only pages and scenes cannot be named or added |
+| `run_consistency_check` | Runs the rule checks in the app and answers with a summary of the open findings. AI checks are left to you, since they use your AI. Undo puts the findings' statuses back |
+| `dismiss_finding` | Marks a finding as ignored or intentional. Undo reopens it |
+| `resolve_finding` | Marks a finding as fixed. Undo reopens it |
+| `label_media` | Sets a picture or video's label and description in the media library. Figures with their own caption keep it. Undo puts the old words back |
 
 Pages are also offered as MCP resources (`lorecraft://page/<id>`), and there is a `catch_up` prompt.
 
