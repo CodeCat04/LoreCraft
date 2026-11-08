@@ -83,3 +83,17 @@ Outside AI tools could read the book but not really write in it, so text had to 
 - [x] Forgiving matching on both sides (dashes, `--`, `…`/`...`, odd and invisible spaces, curly quotes, emphasis markers), checked by shared cases in src/mcp/quote-cases.json. A missing quote's error shows the closest passage.
 - [x] Tool descriptions, the server instructions, the `catch_up` prompt and docs/MCP.md ("Writing with an outside AI") explain it. Local-only scenes stay refused; the pending cap and size limits still apply.
 - Code: src-tauri/src/mcp/suggest.rs, text.rs, tools.rs, server.rs; src/mcp/apply.ts, actions.ts, ProposalsView.tsx.
+
+# Round 3: outside AI with full control
+
+## 13. MCP: full control
+The writer uses Claude Code through LoreCraft's MCP server and found it far too limiting: it could only suggest, and could not change things such as the style guide. This is the foundation that later tools build on.
+- [x] A third permission level, **Make changes directly** (`edit`), in MCP settings and Settings › AI tools (MCP), with a plain explanation. The default stays `suggest`.
+- [x] At the edit level a write tool still makes a proposal through one path (`mcp/write.rs`); the app picks it up and applies it with the same code as Accept, so History, open editors, figure safety and stores stay right. The call waits about 20 s and answers "Done: …" or the real error. If the window does not respond, the change waits as a normal suggestion.
+- [x] Undo: changes made directly are listed under **Applied by outside AI** in Outside suggestions, each with Undo. Text changes go back to the revision saved before, details and the style guide to the old values kept in the payload, and new pages, scenes and chapters go to the trash. Undo refuses if the target changed since. The badge counts waiting suggestions only.
+- [x] Tools split into area modules (`src-tauri/src/mcp/areas/`), each declaring its tools, schemas and handlers, registered from one `areas!` list. Existing tools moved without changing their behaviour.
+- [x] Proposal kinds in a registry (`src/mcp/kinds/`), each with its card, apply and undo: edit, rewrite, insert, newPage, newScene, newChapter, sceneDetails, styleGuide.
+- [x] `set_style_guide` (replace or append, through the style store so the Style guide screen updates) and `get_settings_overview` (permission level, local-only sharing, project language).
+- [x] Hard limits enforced in Rust (`mcp/limits.rs`), stated in the server instructions and tested: no tool changes MCP permissions or settings, AI providers or keys, spending limits or local-only flags; none deletes the project or writes outside it; local-only content stays hidden unless shared; the pending cap counts changes waiting for the window too.
+- [x] Server instructions, tool descriptions and docs/MCP.md explain the three levels; docs/MCP.md has "Adding an MCP tool".
+- Code: src-tauri/src/mcp/areas/, write.rs, limits.rs, suggest.rs; src/mcp/kinds/, auto.ts, actions.ts, ProposalsView.tsx, McpSettings.tsx.

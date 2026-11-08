@@ -108,6 +108,7 @@ Reading:
 | `get_relationships` | Recorded relationships between pages |
 | `list_findings` | Consistency findings and their evidence |
 | `get_style_guide` | The project's style guide, if it has one |
+| `get_settings_overview` | What the tool may do here: the permission level, whether local-only content is shared, and the project's language. It cannot change them |
 | `list_canvases` | The project's canvases, by title |
 | `get_canvas` | One canvas: an outline of its cards, then its JSON Canvas data |
 
@@ -120,7 +121,7 @@ Every page's status is stated, and the tool descriptions explain them:
 
 Figures appear in plain text as lines such as `[Figure 2: The gate (Aria at dawn)]`.
 
-Suggesting, with the app open:
+Changing things, with the app open (see [Permission levels](#permission-levels)):
 
 | Tool | What it does |
 |---|---|
@@ -131,6 +132,7 @@ Suggesting, with the app open:
 | `propose_new_chapter` | Suggests a new chapter with its first scene |
 | `propose_scene_details` | Suggests changes to a scene's title, synopsis, point of view, location, cast, status, story date or notes |
 | `propose_new_page` | Suggests a new page, from a title, type, Markdown body and infobox fields |
+| `set_style_guide` | Replaces or adds to the project's style guide: free-form `text` (kept as voice notes) or any field, with `mode` `replace` or `append` |
 | `add_idea` | Adds a short idea to your idea inbox, marked with the tool it came from. It changes no page or scene |
 
 Pages are also offered as MCP resources (`lorecraft://page/<id>`), and there is a `catch_up` prompt.
@@ -164,10 +166,34 @@ Examples, as a model would call them:
 { "tool": "propose_scene_details", "arguments": { "id": "<scene id>", "synopsis": "Aria waits for Bren.", "status": "revised" } }
 ```
 
+## Permission levels
+
+Under **Settings > AI tools (MCP) > What outside tools can do** you choose one of three:
+
+- **Read only.** Tools can read, and the tools that change things are not offered.
+- **Read and suggest changes** (the default). Each change waits under Outside suggestions until you
+  accept or reject it. Nothing changes before that.
+- **Make changes directly.** Each change is made at once, through the same code as Accept, so the
+  old version is in History first and an open page or scene shows the new text. The tool hears
+  "Done" or the real reason it failed. Each change is announced, and listed under **Applied by
+  outside AI** in Outside suggestions, with **Undo**. If LoreCraft's window does not respond within
+  about 20 seconds, the change waits as a normal suggestion instead.
+
+Undo puts back the version saved before a text change, the old values of details or the style
+guide, or moves a new page, scene or chapter to the trash. If what it changed has been edited since,
+Undo refuses and says so, so newer work is never lost. The top bar's count shows waiting
+suggestions only, never changes already made.
+
+At every level, no tool can change these permissions or any other setting, AI providers or keys,
+spending limits, or what is local only. No tool can delete the project or write a file outside it.
+Local-only content stays hidden unless you share it, and only so many changes can wait at once.
+LoreCraft checks these itself; it does not rely on the AI behaving.
+
 ## Suggestions
 
-Nothing an outside AI does changes a document. When a tool suggests something, a button appears in
-the top bar, and the suggestion waits under **AI > Outside suggestions**, showing what would change.
+At the suggest level, nothing an outside AI does changes a document. When a tool suggests something,
+a button appears in the top bar, and the suggestion waits under **AI > Outside suggestions**, showing
+what would change.
 
 - **Accept** saves the old version in History first, then applies the change. Words the suggestion
   leaves alone keep their links and formatting, and figures and tables are not touched.
@@ -197,7 +223,8 @@ suggestion opens in the other pane, so the list stays open. The pin is kept in y
 - **Local-only content stays hidden.** Pages and scenes marked local only do not exist as far as a
   tool can tell, because the AI behind a tool may be a cloud model. **Share local-only content with
   outside tools** changes that.
-- **Permissions.** Choose **Read and suggest changes** (the default) or **Read only**.
+- **Permissions.** Choose **Read only**, **Read and suggest changes** (the default), or **Make
+  changes directly**. See [Permission levels](#permission-levels) for what no tool can do at any level.
 - **Your text is data.** Tools are told to treat what they read as your material, not as instructions.
   Even so, remember that whatever a tool reads goes to the AI behind it.
 - **The activity log holds no text.** The Settings tab lists which tools were called and when, in
@@ -220,9 +247,126 @@ the right project open, the call is forwarded to it over Streamable HTTP. Otherw
 
 | Path | What it is |
 |---|---|
-| `src-tauri/src/mcp/tools.rs` | The read tools, on any `&Connection` |
-| `src-tauri/src/mcp/suggest.rs` | Storing suggestions |
+| `src-tauri/src/mcp/areas/` | Every tool, one file per area, registered in `areas/mod.rs` |
+| `src-tauri/src/mcp/tools.rs` | `Ctx` and the read tools' code, on any `&Connection` |
+| `src-tauri/src/mcp/write.rs` | The one path a change takes: `Draft`, `WriteCx`, `submit` and the edit-level wait |
+| `src-tauri/src/mcp/suggest.rs` | The `proposals` table, statuses, and helpers write tools share |
+| `src-tauri/src/mcp/limits.rs` | What no tool may do, checked before anything is stored |
 | `src-tauri/src/mcp/server.rs` | The protocol, through `rmcp`, and the stdio routing |
 | `src-tauri/src/mcp/http.rs` | The local endpoint and its security checks |
-| `src/mcp/apply.ts` | Applying an accepted edit to a document |
+| `src/mcp/kinds/` | Every kind of proposal: its card, apply and undo, registered in `kinds/index.ts` |
+| `src/mcp/auto.ts` | The edit level: picks up changes and applies them |
+| `src/mcp/apply.ts` | Applying a text change to a document without an editor |
 | `e2e/mcp.test.mjs` | Tests with a real MCP client against the real executable |
+
+## Adding an MCP tool
+
+A tool is one Rust file in `src-tauri/src/mcp/areas/` and, if it changes anything, one proposal kind
+in `src/mcp/kinds/`. Neither touches the shared server code. As an example, a tool that sets a page's
+summary.
+
+**1. The tool, in `src-tauri/src/mcp/areas/summaries.rs`:**
+
+```rust
+use serde_json::{json, Value};
+
+use super::{write, Tool};
+use crate::error::{AppError, AppResult};
+use crate::mcp::suggest::{optional, reason, required};
+use crate::mcp::tools::resolve_page;
+use crate::mcp::write::{Draft, WriteCx};
+
+pub fn tools() -> Vec<Tool> {
+    vec![write(
+        "set_page_summary",
+        "Set a wiki page's one-line summary. Needs LoreCraft to be open with this project.",
+        json!({ "type": "object", "properties": {
+            "title": { "type": "string", "description": "The page title or an alias." },
+            "summary": { "type": "string", "description": "The new summary." },
+        }, "required": ["title", "summary"] }),
+        set_page_summary,
+    )]
+}
+
+/// Validates, resolves the target and builds the payload. It never changes anything.
+fn set_page_summary(cx: &WriteCx, args: &Value) -> AppResult<Draft> {
+    let summary = required(args, "summary")?.trim().to_string();
+    let (id, title, before) = cx.read(|ctx| {
+        // Through `Ctx`, a local-only page does not exist unless the writer shares it.
+        let id = resolve_page(ctx, args)?;
+        let (title, before): (String, String) = ctx.conn.query_row(
+            "SELECT title, summary FROM pages WHERE id = ?1", [&id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok((id, title, before))
+    })?;
+    if before == summary {
+        return Err(AppError::invalid("Nothing would change."));
+    }
+    // Keep the old value, so Undo can put it back.
+    let payload = json!({ "summary": summary, "before": before, "reason": reason(args) });
+    Ok(Draft::new("pageSummary", title.clone(), payload)
+        .target("page", id)
+        .done(format!("set the summary of \"{title}\".")))
+}
+```
+
+Then add `summaries,` to the `areas!` list in `areas/mod.rs`. A read tool uses `read(...)` with a
+`fn(&Ctx, &Value) -> AppResult<String>` instead, and needs nothing in the app.
+
+`submit` does the rest: the hard limits in `limits.rs`, the pending cap, storing the row, and at the
+edit level waiting for the app. A tool that writes project meta must call `limits::check_meta_key`
+(or put the key in the payload as `metaKey`); one that names a file must keep it inside the project
+(`limits::check_project_path`, or a payload `path`).
+
+**2. The kind, in `src/mcp/kinds/pageSummary.tsx`:**
+
+```tsx
+import * as api from '../../lib/api';
+import { t } from '../../lib/i18n';
+import type { AnyProposal } from '../api';
+import { changedSince, DiffView } from './shared';
+import { compareTexts } from '../../wiki/diff';
+import { defineKind } from './types';
+
+interface Payload { summary: string; before: string }
+
+function Card({ proposal }: { proposal: AnyProposal<Payload> }) {
+  return (
+    <>
+      <p className="mcp-proposal-title">{t('Summary of {title}', { title: proposal.title })}</p>
+      <DiffView lines={compareTexts(proposal.payload.before, proposal.payload.summary)} />
+    </>
+  );
+}
+
+export const pageSummaryKind = defineKind<Payload>({
+  kind: 'pageSummary',
+  Card,
+  // Accept and the edit level both run this. Do not resolve the proposal here.
+  apply: async (p) => {
+    await api.pages.update(p.targetId!, { summary: p.payload.summary });
+    return { ok: true, target: { targetKind: 'page', targetId: p.targetId! } };
+  },
+  // Refuse if it changed since; otherwise put the old value back.
+  undo: async (p) => {
+    const page = await api.pages.get(p.targetId!);
+    if (page.summary !== p.payload.summary) return { ok: false, reason: changedSince() };
+    await api.pages.update(p.targetId!, { summary: p.payload.before });
+    return { ok: true };
+  },
+  accepted: () => t('Summary changed.'),
+});
+```
+
+Then add `pageSummaryKind` to `KINDS` in `kinds/index.ts`. `apply` may return `undo` data, which is
+kept in the payload as `payload.undo` and passed to `undo` later; `shared.tsx` has `writeText` and
+`undoText` for text changes (History revision before, fingerprint after) and `undoCreated` for
+things made new (moved to the trash). Put translations in `src/locales/<code>/<your module>.json`, a
+new file per area, so parallel work does not collide.
+
+**3. Tests.** Rust: in your area file, a `#[cfg(test)]` module that calls
+`crate::mcp::suggest::call(&engine, "c", "set_page_summary", &args, false)` and checks the stored
+row with `suggest::list(conn, "pending")`; `call_as(..., "edit", waits)` with a thread playing the
+window shows the edit level (see the tests in `suggest.rs`). The registry test in
+`src/mcp/kinds.test.ts` fails if a Rust `Draft::new("kind", ...)` has no kind in the app. E2E in
+`e2e/mcp.test.mjs`: set the level with the **What outside tools can do** select, call the tool
+over HTTP, expect `Done: `, and press **Undo: <title>** under Applied by outside AI.
