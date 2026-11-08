@@ -80,8 +80,10 @@ describe('mcp book and structure tools', () => {
     await page.getByRole('button', { name: 'Book settings', exact: true }).click();
     const settings = page.getByRole('dialog', { name: 'Book settings' });
     assert.equal(await settings.getByRole('textbox', { name: 'Title', exact: true }).inputValue(), 'The Ash');
-    assert.equal(await settings.getByRole('combobox', { name: 'Point of view' }).inputValue(), 'first');
-    assert.equal(await settings.getByRole('combobox', { name: 'Tense' }).inputValue(), 'past');
+    // The point of view and tense load just after the dialog opens.
+    const pov = settings.getByRole('combobox', { name: 'Point of view' });
+    const tense = settings.getByRole('combobox', { name: 'Tense' });
+    await waitUntil(async () => (await pov.inputValue()) === 'first' && (await tense.inputValue()) === 'past', 5000, 'the point of view and tense to show');
     await settings.getByRole('button', { name: 'Cancel', exact: true }).click();
     assert.match(await call(client, 'get_book_settings'), /Point of view: first/);
 
