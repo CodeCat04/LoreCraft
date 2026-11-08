@@ -111,6 +111,8 @@ Reading:
 | `get_settings_overview` | What the tool may do here: the permission level, whether local-only content is shared, and the project's language. It cannot change them |
 | `list_canvases` | The project's canvases, by title |
 | `get_canvas` | One canvas: an outline of its cards, then its JSON Canvas data |
+| `get_book_settings` | A book's title, subtitle, author, word goal, point of view, tense, default writing style and word count |
+| `get_threads` | The plot threads, with ids, descriptions and their scenes in reading order |
 
 Every page's status is stated, and the tool descriptions explain them:
 
@@ -134,6 +136,18 @@ Changing things, with the app open (see [Permission levels](#permission-levels))
 | `propose_new_page` | Suggests a new page, from a title, type, Markdown body and infobox fields |
 | `set_style_guide` | Replaces or adds to the project's style guide: free-form `text` (kept as voice notes) or any field, with `mode` `replace` or `append` |
 | `add_idea` | Adds a short idea to your idea inbox, marked with the tool it came from. It changes no page or scene |
+| `create_book` | Creates a book, with a first chapter and scene, and its settings. Undo moves it to the trash while nothing has been written in it |
+| `update_book` | Changes a book's title, subtitle, author, word goal, point of view, tense or default writing style, through the same stores as Book settings |
+| `move_node` | Moves a scene, chapter or part `before` or `after` another, or `into` a chapter or part (or `book`) at a `position`. Refused for a node holding local-only scenes |
+| `rename_node` | Renames a scene, chapter or part |
+| `set_node_status` | Sets the status of a scene, chapter or part |
+| `set_chapter_details` | Changes a chapter's or part's synopsis, notes or word goal |
+| `trash_node` | Moves a scene, chapter or part to the manuscript's trash, never purging. Refused for a node holding local-only scenes |
+| `restore_node` | Brings a node back from the trash, taking a merged scene's text back out of the scene it went into |
+| `split_scene` | Cuts a scene in two at a quote (`position` `before` or `after` it). Undo merges the halves back, exactly while neither has changed |
+| `merge_scenes` | Joins two neighbouring scenes; the second goes to the trash. Undo restores it |
+| `create_thread`, `rename_thread`, `delete_thread` | Create, rename or describe, and delete a plot thread. Undo of a delete brings it back with its scenes |
+| `add_scene_to_thread`, `remove_scene_from_thread` | Put a scene in a plot thread or take it out |
 
 Pages are also offered as MCP resources (`lorecraft://page/<id>`), and there is a `catch_up` prompt.
 

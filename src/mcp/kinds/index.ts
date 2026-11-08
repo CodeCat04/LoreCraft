@@ -9,6 +9,7 @@ import { newPageKind } from './newPage';
 import { newChapterKind, newSceneKind } from './newScene';
 import { sceneDetailsKind } from './sceneDetails';
 import { styleGuideKind } from './styleGuide';
+import { STRUCTURE_KINDS } from './structure';
 import { editKind, insertKind, rewriteKind } from './text';
 
 export const KINDS: ProposalKind[] = [
@@ -20,6 +21,7 @@ export const KINDS: ProposalKind[] = [
   newChapterKind,
   sceneDetailsKind,
   styleGuideKind,
+  ...STRUCTURE_KINDS,
 ];
 
 const byName = new Map(KINDS.map((kind) => [kind.kind, kind]));

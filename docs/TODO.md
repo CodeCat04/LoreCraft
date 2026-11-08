@@ -97,3 +97,14 @@ The writer uses Claude Code through LoreCraft's MCP server and found it far too 
 - [x] Hard limits enforced in Rust (`mcp/limits.rs`), stated in the server instructions and tested: no tool changes MCP permissions or settings, AI providers or keys, spending limits or local-only flags; none deletes the project or writes outside it; local-only content stays hidden unless shared; the pending cap counts changes waiting for the window too.
 - [x] Server instructions, tool descriptions and docs/MCP.md explain the three levels; docs/MCP.md has "Adding an MCP tool".
 - Code: src-tauri/src/mcp/areas/, write.rs, limits.rs, suggest.rs; src/mcp/kinds/, auto.ts, actions.ts, ProposalsView.tsx, McpSettings.tsx.
+
+## 14. MCP: manuscript structure and books
+The outside AI can shape the book itself, not only its text, at the suggest or edit level, with Undo for each change.
+- [x] `create_book` and `update_book`: title, subtitle, author, word goal, point of view and tense (`books.voice`) and the book's default writing style, through the same stores as Book settings. `get_book_settings` reads them.
+- [x] `move_node`: before or after another node, or into a chapter or part at a position. Undo moves it back.
+- [x] `rename_node`, `set_node_status` (scenes, chapters and parts) and `set_chapter_details` (synopsis, notes, word goal).
+- [x] `trash_node` and `restore_node`, through the manuscript trash. Nothing is ever purged.
+- [x] `split_scene` at a quote and `merge_scenes` for two neighbouring scenes, with the app's split and merge and their undo.
+- [x] Plot threads: `get_threads`, `create_thread`, `rename_thread`, `delete_thread`, `add_scene_to_thread`, `remove_scene_from_thread`.
+- [x] Local-only scenes and chapters stay hidden and refused unless shared; moving or trashing a node that holds local-only scenes is refused.
+- Code: src-tauri/src/mcp/areas/structure.rs; src/mcp/kinds/structure.tsx; e2e/mcp-book.test.mjs.
