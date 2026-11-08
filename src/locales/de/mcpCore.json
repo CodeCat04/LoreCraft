@@ -17,5 +17,6 @@
   "Made by {client}, {time}": "Gemacht von {client}, {time}",
   "Undo: {name}": "Rückgängig: {name}",
   "Applied by outside AI ({count})": "Von externer KI angewendet ({count})",
-  "An outside AI made these changes directly, as you allowed in Settings. Undo takes one back if nothing has changed it since.": "Eine externe KI hat diese Änderungen direkt gemacht, wie du es in den Einstellungen erlaubt hast. Rückgängig nimmt eine zurück, wenn sie seitdem nicht geändert wurde."
+  "An outside AI made these changes directly, as you allowed in Settings. Undo takes one back if nothing has changed it since.": "Eine externe KI hat diese Änderungen direkt gemacht, wie du es in den Einstellungen erlaubt hast. Rückgängig nimmt eine zurück, wenn sie seitdem nicht geändert wurde.",
+  "AI tools outside LoreCraft may make changes directly. Each change is listed under Applied by outside AI, where you can undo it. You can change this in Settings.": "KI-Werkzeuge außerhalb von LoreCraft dürfen direkt Änderungen vornehmen. Jede Änderung steht unter „Von externer KI angewendet“, wo du sie rückgängig machen kannst. Das lässt sich in den Einstellungen ändern."
 }

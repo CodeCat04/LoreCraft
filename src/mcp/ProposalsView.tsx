@@ -419,6 +419,11 @@ export function ProposalsView() {
   const focusPending = useListFocus((s) => s.pending);
   const [proposals, setProposals] = useState<AnyProposal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const mcpVersion = useDataVersion('mcp', 'all');
+  const [permission, setPermission] = useState<string | null>(null);
+  useEffect(() => {
+    void mcp.status().then((status) => setPermission(status.permission), () => setPermission(null));
+  }, [mcpVersion]);
   const rootRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
   // The ids shown now and just before, so the next suggestion can be found once one goes.
@@ -489,7 +494,9 @@ export function ProposalsView() {
         <PinButton />
       </div>
       <p className="muted mcp-intro">
-        {t('AI tools outside LoreCraft can suggest changes, and nothing changes until you accept one. Accepting saves the old version in History first.')}
+        {permission === 'edit'
+          ? t('AI tools outside LoreCraft may make changes directly. Each change is listed under Applied by outside AI, where you can undo it. You can change this in Settings.')
+          : t('AI tools outside LoreCraft can suggest changes, and nothing changes until you accept one. Accepting saves the old version in History first.')}
       </p>
       {error && <p className="field-error">{error}</p>}
       {proposals && proposals.length === 0 && (

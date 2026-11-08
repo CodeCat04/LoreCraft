@@ -17,5 +17,6 @@
   "Made by {client}, {time}": "Hecho por {client}, {time}",
   "Undo: {name}": "Deshacer: {name}",
   "Applied by outside AI ({count})": "Aplicado por una IA externa ({count})",
-  "An outside AI made these changes directly, as you allowed in Settings. Undo takes one back if nothing has changed it since.": "Una IA externa hizo estos cambios directamente, como permitiste en los ajustes. Deshacer revierte uno si nada lo ha cambiado desde entonces."
+  "An outside AI made these changes directly, as you allowed in Settings. Undo takes one back if nothing has changed it since.": "Una IA externa hizo estos cambios directamente, como permitiste en los ajustes. Deshacer revierte uno si nada lo ha cambiado desde entonces.",
+  "AI tools outside LoreCraft may make changes directly. Each change is listed under Applied by outside AI, where you can undo it. You can change this in Settings.": "Las herramientas de IA externas a LoreCraft pueden hacer cambios directamente. Cada cambio aparece en «Aplicado por una IA externa», donde puedes deshacerlo. Puedes cambiarlo en Ajustes."
 }
