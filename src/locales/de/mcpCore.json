@@ -1,0 +1,21 @@
+{
+  "This kind of change needs a newer version of LoreCraft.": "Diese Art von Änderung braucht eine neuere Version von LoreCraft.",
+  "This change cannot be undone here. Open History to restore an older version.": "Diese Änderung lässt sich hier nicht rückgängig machen. Öffne den Verlauf, um eine ältere Version wiederherzustellen.",
+  "{client} changed {title}. You can undo it under Outside suggestions.": "{client} hat {title} geändert. Du kannst es unter Vorschläge von außen rückgängig machen.",
+  "This has changed since the outside AI made the change, so undoing it could lose newer work. Open History to restore an older version.": "Das hat sich seit der Änderung durch die externe KI geändert, Rückgängigmachen könnte neuere Arbeit verlieren. Öffne den Verlauf, um eine ältere Version wiederherzustellen.",
+  "What this change made or changed has been deleted.": "Was diese Änderung erstellt oder geändert hat, wurde gelöscht.",
+  "There is no earlier version to go back to.": "Es gibt keine frühere Version, zu der du zurückkehren kannst.",
+  "Change to the style guide": "Änderung am Stilleitfaden",
+  "Style guide changed.": "Stilleitfaden geändert.",
+  "Let AI tools outside LoreCraft, such as Claude Code or OpenCode with a local model, read your lore and your book. You choose below whether they can only read, suggest changes for you to accept, or make changes directly. It works only from this computer.": "Lass KI-Werkzeuge außerhalb von LoreCraft, etwa Claude Code oder OpenCode mit einem lokalen Modell, deine Welt und dein Buch lesen. Wähle unten, ob sie nur lesen, Änderungen zum Annehmen vorschlagen oder direkt ändern dürfen. Das funktioniert nur von diesem Computer aus.",
+  "Make changes directly": "Direkt ändern",
+  "Changes are made at once, without asking you first. Each one is saved in History and listed under Outside suggestions, where you can undo it. Tools still cannot change these settings, your AI providers or keys, or what is local only.": "Änderungen werden sofort gemacht, ohne vorher zu fragen. Jede wird im Verlauf gespeichert und unter Vorschläge von außen aufgeführt, wo du sie rückgängig machen kannst. Werkzeuge können diese Einstellungen, deine KI-Anbieter oder Schlüssel und was nur lokal ist weiterhin nicht ändern.",
+  "Tools can read, but cannot suggest or make any change.": "Werkzeuge können lesen, aber nichts vorschlagen oder ändern.",
+  "Each change waits under Outside suggestions until you accept or reject it.": "Jede Änderung wartet unter Vorschläge von außen, bis du sie annimmst oder ablehnst.",
+  "this change": "diese Änderung",
+  "Applied: {name}": "Angewendet: {name}",
+  "Made by {client}, {time}": "Gemacht von {client}, {time}",
+  "Undo: {name}": "Rückgängig: {name}",
+  "Applied by outside AI ({count})": "Von externer KI angewendet ({count})",
+  "An outside AI made these changes directly, as you allowed in Settings. Undo takes one back if nothing has changed it since.": "Eine externe KI hat diese Änderungen direkt gemacht, wie du es in den Einstellungen erlaubt hast. Rückgängig nimmt eine zurück, wenn sie seitdem nicht geändert wurde."
+}

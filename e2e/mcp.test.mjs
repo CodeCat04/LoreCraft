@@ -537,6 +537,71 @@ describe('mcp', () => {
     assert.deepEqual(await rpc(page, 'nodes.cast', { id: scene.id }), [aria.id]);
   });
 
+  it('makes changes directly at the edit level, shows them, and undoes them; suggest still queues', async () => {
+    app = await launch(workspace);
+    const { page } = app;
+    await createProject(page, 'Ashfall');
+    const { scene } = await seed(page);
+    const plain = async (id) =>
+      ((await rpc(page, 'nodes.get', { id })).content.content ?? []).map((b) => (b.content ?? []).map((c) => c.text ?? '').join('')).join('\n\n');
+    const status = await turnOn(page);
+    await page.getByRole('combobox', { name: 'What outside tools can do' }).selectOption('edit');
+    await waitUntil(async () => (await rpc(page, 'mcp.status')).permission === 'edit', 5000, 'the edit level');
+    await page.getByTestId('mcp-permission-hint').getByText(/without asking you first/).waitFor();
+    const http = track(await connectHttp(status.url, status.token));
+
+    // The AI can find out what it may do, and cannot change it.
+    assert.match(await read(http, 'get_settings_overview'), /Make changes directly/);
+    const sneaky = await call(http, 'set_style_guide', { text: 'x', permission: 'edit' });
+    assert.equal(sneaky.isError, true);
+    assert.match(sneaky.text, /cannot change that/);
+
+    // The style guide: applied, reported as done, and shown in the app.
+    const done = await read(http, 'set_style_guide', { text: 'Short sentences. No adverbs.' });
+    assert.match(done, /^Done: /);
+    assert.match(await read(http, 'get_style_guide'), /Short sentences\. No adverbs\./);
+    assert.equal(await rpc(page, 'mcp.proposalCount'), 0, 'a change already made is not on the badge');
+    await page.getByRole('menuitem', { name: 'AI', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Your style guide…' }).click();
+    await waitUntil(
+      async () => (await page.getByRole('textbox', { name: 'Voice notes' }).inputValue().catch(() => '')).includes('Short sentences'),
+      8000,
+      'the style guide screen to show the new rules',
+    );
+
+    // An existing kind, applied directly.
+    const inserted = await read(http, 'propose_insert', { id: scene.id, at: 'end', text: 'The gate held.' });
+    assert.match(inserted, /^Done: /);
+    assert.equal(await plain(scene.id), 'Rain fell on the ember gate.\n\nThe gate held.');
+
+    // Both show under Applied by outside AI, and Undo takes each back.
+    await page.getByRole('menuitem', { name: 'AI', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Outside suggestions' }).click();
+    await page.getByRole('heading', { name: 'Applied by outside AI (2)' }).waitFor();
+    await app.screenshot('mcp-applied-list');
+    await page.getByRole('button', { name: 'Undo: The gate at dawn' }).click();
+    await waitUntil(async () => (await plain(scene.id)) === 'Rain fell on the ember gate.', 5000, 'the insert to be undone');
+    await page.getByRole('button', { name: 'Undo: Style guide' }).click();
+    await waitUntil(async () => !/Short sentences/.test(await read(http, 'get_style_guide')), 5000, 'the style guide to be restored');
+    await page.getByRole('heading', { name: 'Applied by outside AI' }).waitFor({ state: 'detached' });
+
+    // Undo refuses when the text has changed since.
+    await read(http, 'propose_insert', { id: scene.id, at: 'end', text: 'Night came.' });
+    await rpc(page, 'nodes.update', { id: scene.id, patch: { content: doc('The writer rewrote it.') } });
+    await page.getByRole('button', { name: 'Undo: The gate at dawn' }).click();
+    await page.locator('.mcp-applied [role="alert"]').getByText(/has changed since/).waitFor();
+    assert.equal(await plain(scene.id), 'The writer rewrote it.');
+
+    // Back at the suggest level, a change waits for the writer.
+    await openSettingsTab(page);
+    await page.getByRole('combobox', { name: 'What outside tools can do' }).selectOption('suggest');
+    await waitUntil(async () => (await rpc(page, 'mcp.status')).permission === 'suggest', 5000, 'the suggest level');
+    const queued = await read(http, 'propose_insert', { id: scene.id, at: 'end', text: 'Dawn.' });
+    assert.match(queued, /Nothing has changed yet/);
+    assert.equal(await rpc(page, 'mcp.proposalCount'), 1);
+    assert.equal(await plain(scene.id), 'The writer rewrote it.');
+  });
+
   it('pins the list: a live count in the top bar opens it beside, and accepting keeps the writer in it', async () => {
     app = await launch(workspace);
     const { page } = app;

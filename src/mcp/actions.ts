@@ -1,206 +1,71 @@
-/** Accepting and rejecting suggestions from outside tools. */
+/**
+ * Accepting, rejecting, applying and undoing changes from outside tools. What each kind of
+ * change does is in `kinds/`; this file runs a kind and moves the proposal on.
+ */
 
-import * as api from '../lib/api';
 import { t } from '../lib/i18n';
-import { errorMessage, RpcError } from '../lib/rpc';
-import { flushOrStop } from '../editor/saving';
-import { markdownToPm } from '../editor/convert';
-import { withoutModelMedia } from '../editor/ai/hunks';
+import { errorMessage } from '../lib/rpc';
 import { waitForEditor } from '../editor/ai/registry';
 import { addSuggestion, pendingSuggestions, suggestionsKey } from '../editor/ai/suggestions';
-import { keyFromLabel } from '../wiki/infobox';
-import type { NodePatch } from '../lib/api';
-import type { Infobox, NodeStatus, PmNode } from '../lib/types';
 import type { Route } from '../state/nav';
 import type { Transaction } from '@tiptap/pm/state';
-import { applyTextProposal, planTextProposal } from './apply';
-import { mcp, type PageRef, type Proposal, type TextProposal } from './api';
+import { planTextProposal } from './apply';
+import { mcp, type AnyProposal, type Proposal, type TextProposal } from './api';
+import { kindFor, type ApplyResult } from './kinds';
 
 export type AcceptResult = { ok: true } | { ok: false; reason: string };
 
-async function currentDocument(kind: 'page' | 'node', id: string): Promise<PmNode | null> {
-  try {
-    if (kind === 'page') {
-      const page = await api.pages.get(id);
-      return page.deletedAt ? null : page.content;
-    }
-    const node = await api.nodes.get(id);
-    return node.deletedAt ? null : node.content;
-  } catch (error) {
-    if (error instanceof RpcError && error.code === 'NOT_FOUND') return null;
-    throw error;
-  }
-}
+const unknownKind = () => t('This kind of change needs a newer version of LoreCraft.');
 
-async function acceptEdit(proposal: TextProposal): Promise<AcceptResult> {
-  const { targetKind, targetId } = proposal;
-  // What the writer typed in the last moments counts as the document.
+/** Runs a kind's apply, turning anything thrown into a reason. Does not resolve the proposal. */
+export async function applyProposal(proposal: AnyProposal | Proposal): Promise<ApplyResult> {
+  const kind = kindFor(proposal.kind);
+  if (!kind) return { ok: false, reason: unknownKind() };
   try {
-    await flushOrStop();
+    return await kind.apply(proposal as AnyProposal);
   } catch (error) {
     return { ok: false, reason: errorMessage(error) };
   }
-  const content = await currentDocument(targetKind, targetId);
-  if (!content) return { ok: false, reason: t('What this suggestion changes has been deleted.') };
-  const result = applyTextProposal(content, proposal);
-  if ('stale' in result) return { ok: false, reason: result.stale };
-  await api.revisions.checkpoint(targetKind, targetId, 'ai');
-  if (targetKind === 'page') await api.pages.update(targetId, { content: result.doc });
-  else await api.nodes.update(targetId, { content: result.doc });
-  await mcp.resolve(proposal.id, 'accepted', { targetKind, targetId });
+}
+
+/** The writer's Accept. */
+export async function acceptProposal(proposal: AnyProposal | Proposal): Promise<AcceptResult> {
+  const result = await applyProposal(proposal);
+  if (!result.ok) return result;
+  await mcp.resolve(proposal.id, 'accepted', result.target);
   return { ok: true };
 }
 
-function newPageInfobox(fields: { label: string; value: string }[] | undefined): Infobox {
-  const taken: string[] = [];
-  return {
-    fields: (fields ?? []).map(({ label, value }) => {
-      const key = keyFromLabel(label, taken);
-      taken.push(key);
-      return { key, label, kind: 'text', value };
-    }),
-  };
+/**
+ * The edit level: a change the window picked up (status `applying`) is applied through the
+ * same code as Accept, then marked applied with what Undo needs, or failed with the reason.
+ */
+export async function applyDirectly(proposal: AnyProposal): Promise<ApplyResult> {
+  const result = await applyProposal(proposal);
+  if (result.ok) await mcp.resolve(proposal.id, 'applied', { ...result.target, undo: result.undo ?? null });
+  else await mcp.resolve(proposal.id, 'failed', { error: result.reason });
+  return result;
 }
 
-async function acceptNewPage(proposal: Extract<Proposal, { kind: 'newPage' }>): Promise<AcceptResult> {
-  const { payload } = proposal;
-  const parsed = markdownToPm(payload.body);
-  const content: PmNode = { type: 'doc', content: withoutModelMedia(parsed.content) };
-  if (!content.content?.length) content.content = [{ type: 'paragraph' }];
+/** True if this applied change has an Undo. */
+export function canUndo(proposal: AnyProposal): boolean {
+  return !!kindFor(proposal.kind)?.undo;
+}
+
+/** Takes back a change applied at the edit level. Refuses, with the reason, if it has changed since. */
+export async function undoProposal(proposal: AnyProposal): Promise<AcceptResult> {
+  const kind = kindFor(proposal.kind);
+  if (!kind?.undo) return { ok: false, reason: t('This change cannot be undone here. Open History to restore an older version.') };
+  let result;
   try {
-    await api.pages.create({
-      title: payload.title,
-      pageType: payload.pageType,
-      status: 'draft',
-      summary: payload.summary ?? '',
-      content,
-      infobox: newPageInfobox(payload.infobox),
-      aliases: payload.aliases ?? [],
-      categories: payload.categories ?? [],
-    });
+    result = await kind.undo(proposal, proposal.payload.undo);
   } catch (error) {
     return { ok: false, reason: errorMessage(error) };
   }
-  await mcp.resolve(proposal.id, 'accepted');
+  if (!result.ok) return result;
+  const target = proposal.targetKind && proposal.targetId ? { targetKind: proposal.targetKind, targetId: proposal.targetId } : undefined;
+  await mcp.resolve(proposal.id, 'undone', target);
   return { ok: true };
-}
-
-/** Text from an outside AI as a document, without any media it may have named. */
-function markdownDoc(text: string | undefined): PmNode {
-  const parsed = markdownToPm(text ?? '');
-  const content = withoutModelMedia(parsed.content);
-  return { type: 'doc', content: content.length ? content : [{ type: 'paragraph' }] };
-}
-
-async function isLive(id: string): Promise<boolean> {
-  try {
-    return !(await api.nodes.get(id)).deletedAt;
-  } catch {
-    return false;
-  }
-}
-
-interface NewSceneFields {
-  title: string;
-  synopsis?: string;
-  pov?: PageRef;
-  location?: PageRef;
-  cast?: PageRef[];
-  text?: string;
-}
-
-async function createScene(bookId: string, chapterId: string, scene: NewSceneFields, afterId?: string): Promise<void> {
-  const made = await api.nodes.create({
-    bookId,
-    parentId: chapterId,
-    kind: 'scene',
-    title: scene.title,
-    afterId,
-    content: markdownDoc(scene.text),
-    synopsis: scene.synopsis ?? '',
-  });
-  if (scene.pov || scene.location) {
-    await api.nodes.update(made.id, {
-      ...(scene.pov ? { povPageId: scene.pov.id } : {}),
-      ...(scene.location ? { locationPageId: scene.location.id } : {}),
-    });
-  }
-  if (scene.cast?.length) await api.nodes.setCast(made.id, scene.cast.map((p) => p.id));
-}
-
-async function acceptNewScene(proposal: Extract<Proposal, { kind: 'newScene' }>): Promise<AcceptResult> {
-  const { payload } = proposal;
-  if (!(await isLive(payload.chapterId))) return { ok: false, reason: t('The chapter this scene goes in has been deleted.') };
-  try {
-    await createScene(payload.bookId, payload.chapterId, payload, payload.afterId);
-  } catch (error) {
-    return { ok: false, reason: errorMessage(error) };
-  }
-  await mcp.resolve(proposal.id, 'accepted');
-  return { ok: true };
-}
-
-async function acceptNewChapter(proposal: Extract<Proposal, { kind: 'newChapter' }>): Promise<AcceptResult> {
-  const { payload } = proposal;
-  if (payload.parentId && !(await isLive(payload.parentId))) return { ok: false, reason: t('The part this chapter goes in has been deleted.') };
-  try {
-    const chapter = await api.nodes.create({
-      bookId: payload.bookId,
-      parentId: payload.parentId ?? null,
-      kind: 'chapter',
-      title: payload.title,
-      afterId: payload.afterId,
-      synopsis: payload.synopsis ?? '',
-    });
-    await createScene(payload.bookId, chapter.id, payload.scene);
-  } catch (error) {
-    return { ok: false, reason: errorMessage(error) };
-  }
-  await mcp.resolve(proposal.id, 'accepted');
-  return { ok: true };
-}
-
-async function acceptSceneDetails(proposal: Extract<Proposal, { kind: 'sceneDetails' }>): Promise<AcceptResult> {
-  const { changes } = proposal.payload;
-  try {
-    await flushOrStop();
-  } catch (error) {
-    return { ok: false, reason: errorMessage(error) };
-  }
-  if (!(await isLive(proposal.targetId))) return { ok: false, reason: t('What this suggestion changes has been deleted.') };
-  const patch: NodePatch = {};
-  if (changes.title !== undefined) patch.title = changes.title;
-  if (changes.synopsis !== undefined) patch.synopsis = changes.synopsis;
-  if (changes.status !== undefined) patch.status = changes.status as NodeStatus;
-  if (changes.storyDate !== undefined) patch.storyDate = changes.storyDate;
-  if (changes.notes !== undefined) patch.notes = changes.notes;
-  if (changes.pov !== undefined) patch.povPageId = changes.pov?.id ?? '';
-  if (changes.location !== undefined) patch.locationPageId = changes.location?.id ?? '';
-  try {
-    if (Object.keys(patch).length) await api.nodes.update(proposal.targetId, patch);
-    if (changes.cast) await api.nodes.setCast(proposal.targetId, changes.cast.map((p) => p.id));
-  } catch (error) {
-    return { ok: false, reason: errorMessage(error) };
-  }
-  await mcp.resolve(proposal.id, 'accepted');
-  return { ok: true };
-}
-
-export function acceptProposal(proposal: Proposal): Promise<AcceptResult> {
-  switch (proposal.kind) {
-    case 'edit':
-    case 'rewrite':
-    case 'insert':
-      return acceptEdit(proposal);
-    case 'newScene':
-      return acceptNewScene(proposal);
-    case 'newChapter':
-      return acceptNewChapter(proposal);
-    case 'sceneDetails':
-      return acceptSceneDetails(proposal);
-    case 'newPage':
-      return acceptNewPage(proposal);
-  }
 }
 
 /**
@@ -243,6 +108,6 @@ export async function reviewInDocument(proposal: TextProposal, open: (route: Rou
   return { ok: true };
 }
 
-export async function rejectProposal(proposal: Proposal): Promise<void> {
+export async function rejectProposal(proposal: AnyProposal | Proposal): Promise<void> {
   await mcp.resolve(proposal.id, 'rejected');
 }

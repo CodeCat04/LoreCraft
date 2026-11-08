@@ -1,7 +1,7 @@
 //! What the MCP server keeps in the data folder, apart from the app's other settings so
 //! the token never reaches the UI at startup.
 //!
-//! - `mcp-settings.json`: on or off, permission level, local-only sharing, port and token.
+//! - `mcp-settings.json`: on or off, permission level (read, suggest or edit), local-only sharing, port and token.
 //! - `mcp.json`: where the running app listens. It exists only while the app serves, and a
 //!   crash can leave it behind, so a reader treats it as stale if nothing answers.
 //!
@@ -24,12 +24,14 @@ pub const APP_IDENTIFIER: &str = "com.codecat04.lorecraft";
 
 pub const PERMISSION_READ: &str = "read";
 pub const PERMISSION_SUGGEST: &str = "suggest";
+/// Changes are made at once, through the same code as Accept, and can be undone.
+pub const PERMISSION_EDIT: &str = "edit";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct McpSettings {
     pub enabled: bool,
-    /// `read` or `suggest`.
+    /// `read`, `suggest` or `edit`.
     pub permission: String,
     /// Shows pages and scenes marked local only to outside tools.
     pub share_local_only: bool,

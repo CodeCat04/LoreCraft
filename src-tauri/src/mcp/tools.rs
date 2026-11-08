@@ -10,268 +10,36 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 
+use super::areas::{self, Handler};
 use super::text::{cut, doc_to_text};
 use crate::content::title_key;
 use crate::error::{AppError, AppResult};
 use crate::rpc::{extras, manuscript, pages, search};
 
-const STATUS_HELP: &str = "A page's status says how far to trust it: canon is established fact in this world; draft is still being written and may change; idea is a possibility that has not been decided; retconned is no longer true, kept only for reference, and must not be treated as fact.";
+pub(crate) const STATUS_HELP: &str = "A page's status says how far to trust it: canon is established fact in this world; draft is still being written and may change; idea is a possibility that has not been decided; retconned is no longer true, kept only for reference, and must not be treated as fact.";
 
-const DEFAULT_CATCH_UP_CHARS: usize = 20_000;
-const MIN_CATCH_UP_CHARS: usize = 1_200;
+pub(crate) const DEFAULT_CATCH_UP_CHARS: usize = 20_000;
+pub(crate) const MIN_CATCH_UP_CHARS: usize = 1_200;
 /// Below this, the tool descriptions have to be enough to explain page statuses.
 const ROOM_FOR_STATUS_HELP: usize = 3_000;
 const MAX_CHARS: usize = 400_000;
-const DEFAULT_CHAPTER_CHARS: usize = 60_000;
+pub(crate) const DEFAULT_CHAPTER_CHARS: usize = 60_000;
 
+/// A tool as the protocol lists it. The tools themselves are declared in `super::areas`.
 pub struct ToolDef {
     pub name: &'static str,
     pub description: String,
     pub schema: Value,
-    /// Needs the app open and the "read and suggest" permission.
+    /// Changes something, so it needs the app open and more than read only.
     pub suggests: bool,
-}
-
-fn empty_schema() -> Value {
-    json!({ "type": "object", "properties": {} })
-}
-
-fn read_tool(name: &'static str, description: impl Into<String>, schema: Value) -> ToolDef {
-    ToolDef {
-        name,
-        description: description.into(),
-        schema,
-        suggests: false,
-    }
-}
-
-fn suggest_tool(name: &'static str, description: impl Into<String>, schema: Value) -> ToolDef {
-    ToolDef {
-        name,
-        description: description.into(),
-        schema,
-        suggests: true,
-    }
 }
 
 /// Every tool, in the order a client should meet them.
 pub fn definitions() -> Vec<ToolDef> {
-    vec![
-        read_tool(
-            "catch_me_up",
-            format!(
-                "Call this first. One call gets you up to speed on the project: its books and their structure with word counts, the story so far, the main wiki pages with their status and summaries, and the style guide. It says what was left out for size and how to read more. {STATUS_HELP}"
-            ),
-            json!({ "type": "object", "properties": {
-                "max_chars": { "type": "integer", "description": format!("Largest result size in characters. Default {DEFAULT_CATCH_UP_CHARS}. A small local model may want less."), "minimum": MIN_CATCH_UP_CHARS },
-            }}),
-        ),
-        read_tool(
-            "search_lore",
-            "Full-text search across the wiki pages and manuscript scenes. Returns titles, ids, each page's status, and a short excerpt. Use it to find where something is mentioned.",
-            json!({ "type": "object", "properties": {
-                "query": { "type": "string", "description": "Words to look for." },
-                "kind": { "type": "string", "enum": ["all", "page", "scene"], "description": "Limit results to pages or scenes. Default all." },
-                "limit": { "type": "integer", "description": "Most results to return. Default 20.", "minimum": 1, "maximum": 100 },
-            }, "required": ["query"] }),
-        ),
-        read_tool(
-            "get_page",
-            format!(
-                "Read one wiki page by title or alias: its status, aliases, categories, infobox, plain text, and what links to it. Figures appear as lines such as [Figure 2: label (description)]. {STATUS_HELP}"
-            ),
-            json!({ "type": "object", "properties": {
-                "title": { "type": "string", "description": "The page title or an alias." },
-                "id": { "type": "string", "description": "The page id, if known. Used instead of the title." },
-            }}),
-        ),
-        read_tool(
-            "list_pages",
-            format!(
-                "List wiki pages with their status and summary, optionally filtered. Use it to see what exists. {STATUS_HELP}"
-            ),
-            json!({ "type": "object", "properties": {
-                "status": { "type": "string", "enum": ["canon", "draft", "idea", "retconned"], "description": "Only pages with this status." },
-                "type": { "type": "string", "description": "Only pages of this type, such as character or place." },
-                "category": { "type": "string", "description": "Only pages in this category." },
-                "sort": { "type": "string", "enum": ["title", "updated", "created", "words"], "description": "Default title." },
-                "limit": { "type": "integer", "description": "Most pages to return. Default 200.", "minimum": 1, "maximum": 2000 },
-            }}),
-        ),
-        read_tool(
-            "get_outline",
-            "The manuscript's structure: books, parts, chapters and scenes in reading order, with ids, status, word counts, point of view, story dates and synopses. Use the ids with get_scene and get_chapter.",
-            json!({ "type": "object", "properties": {
-                "book": { "type": "string", "description": "A book's title or id. Default all books." },
-            }}),
-        ),
-        read_tool(
-            "get_scene",
-            "Read one scene of the manuscript as plain text, with its chapter, status, point of view, location, cast, story date and synopsis. Figures appear as lines such as [Figure 2: label (description)]. Scene titles can repeat, so prefer an id from get_outline.",
-            json!({ "type": "object", "properties": {
-                "id": { "type": "string", "description": "The scene id. Used instead of the title." },
-                "title": { "type": "string", "description": "The scene title." },
-            }}),
-        ),
-        read_tool(
-            "get_chapter",
-            "Read a whole chapter or part, scene by scene, as plain text, within a size limit. It says which scenes did not fit.",
-            json!({ "type": "object", "properties": {
-                "id": { "type": "string", "description": "The chapter id. Used instead of the title." },
-                "title": { "type": "string", "description": "The chapter title." },
-                "max_chars": { "type": "integer", "description": format!("Largest result size in characters. Default {DEFAULT_CHAPTER_CHARS}."), "minimum": 1000 },
-            }}),
-        ),
-        read_tool(
-            "get_timeline",
-            "The in-world timeline: scenes that have a story date, in reading order, and wiki pages with dates such as births, deaths and events. Dates are free text as the writer entered them.",
-            empty_schema(),
-        ),
-        read_tool(
-            "get_relationships",
-            "Relationships between wiki pages as the writer recorded them, such as family, allies and rivals. Give a page to see only its relationships.",
-            json!({ "type": "object", "properties": {
-                "page": { "type": "string", "description": "A page title or alias. Default all relationships." },
-            }}),
-        ),
-        read_tool(
-            "list_findings",
-            "Consistency findings: contradictions and other problems found in the lore and the book, with their evidence.",
-            json!({ "type": "object", "properties": {
-                "status": { "type": "string", "enum": ["open", "fixed", "intentional", "ignored", "all"], "description": "Default open." },
-                "limit": { "type": "integer", "description": "Most findings to return. Default 100.", "minimum": 1, "maximum": 1000 },
-            }}),
-        ),
-        read_tool(
-            "get_style_guide",
-            "The project's style guide: tense, point of view, voice, words to avoid. Follow it when writing or suggesting text. Empty if the writer has not set one.",
-            empty_schema(),
-        ),
-        read_tool(
-            "list_canvases",
-            "List the project's canvases: free boards where the writer lays out cards, pages and scenes and links them with arrows. Returns titles and ids for get_canvas.",
-            empty_schema(),
-        ),
-        read_tool(
-            "get_canvas",
-            "Read one canvas by title or id: a plain outline of its cards (each text card's text and each linked page, scene or file), then its data in JSON Canvas format (nodes and edges).",
-            json!({ "type": "object", "properties": {
-                "title": { "type": "string", "description": "The canvas title." },
-                "id": { "type": "string", "description": "The canvas id, if known. Used instead of the title." },
-            }}),
-        ),
-        suggest_tool(
-            "propose_edit",
-            "Suggest replacing a short part of a wiki page or scene. Nothing changes until the writer accepts it in the app, under Outside suggestions, so ask for what you think is right. Quote the existing text as get_page or get_scene shows it, with enough words to be unique. Curly quotes, dashes and line breaks need not match. The replacement can use Markdown such as *italic* and [[Page title]] links. Figures cannot be changed. For many paragraphs, use propose_rewrite. Needs LoreCraft to be open with this project.",
-            json!({ "type": "object", "properties": {
-                "target": { "type": "string", "enum": ["page", "scene"], "description": "What to change." },
-                "id": { "type": "string", "description": "The page or scene id. Used instead of the title." },
-                "title": { "type": "string", "description": "The page or scene title." },
-                "quote": { "type": "string", "description": "The existing text to replace, copied exactly." },
-                "replacement": { "type": "string", "description": "The new text. Empty removes the quoted text." },
-                "reason": { "type": "string", "description": "A short note to the writer saying why." },
-            }, "required": ["target", "quote", "replacement"] }),
-        ),
-        suggest_tool(
-            "propose_rewrite",
-            "Suggest rewriting a long stretch of a scene, or the whole scene. Give from_quote and to_quote: a few unique words where the stretch starts and where it ends, both included. Or give whole: true to replace the entire scene. The replacement is Markdown; a blank line starts a new paragraph. The writer can review it paragraph by paragraph. Figures stay where they are. Needs LoreCraft to be open with this project.",
-            json!({ "type": "object", "properties": {
-                "id": { "type": "string", "description": "The scene id, from get_outline. Used instead of the title." },
-                "title": { "type": "string", "description": "The scene title." },
-                "target": { "type": "string", "enum": ["scene", "page"], "description": "Default scene." },
-                "from_quote": { "type": "string", "description": "The first words of the stretch, copied exactly. Must be unique." },
-                "to_quote": { "type": "string", "description": "The last words of the stretch, copied exactly. Must be unique after from_quote." },
-                "whole": { "type": "boolean", "description": "True to replace the whole scene. No quotes needed." },
-                "replacement": { "type": "string", "description": "The new text, as Markdown." },
-                "reason": { "type": "string", "description": "A short note to the writer saying why." },
-            }, "required": ["replacement"] }),
-        ),
-        suggest_tool(
-            "propose_insert",
-            "Suggest adding new text to a scene: at the start or end, or right after or before a quote. Works on an empty scene. The text is Markdown; a blank line starts a new paragraph. If the quote ends a paragraph, the text comes as new paragraphs after it. Needs LoreCraft to be open with this project.",
-            json!({ "type": "object", "properties": {
-                "id": { "type": "string", "description": "The scene id, from get_outline. Used instead of the title." },
-                "title": { "type": "string", "description": "The scene title." },
-                "target": { "type": "string", "enum": ["scene", "page"], "description": "Default scene." },
-                "at": { "type": "string", "enum": ["start", "end"], "description": "Add at the start or the end." },
-                "after_quote": { "type": "string", "description": "Add right after these words, copied exactly." },
-                "before_quote": { "type": "string", "description": "Add right before these words, copied exactly." },
-                "text": { "type": "string", "description": "The new text, as Markdown." },
-                "reason": { "type": "string", "description": "A short note to the writer saying why." },
-            }, "required": ["text"] }),
-        ),
-        suggest_tool(
-            "propose_new_scene",
-            "Suggest a new scene, with its text. It goes after the scene you name, or at the end of a chapter, or at the end of the book. Pages for pov, location and cast are named by title. Nothing is created until the writer accepts it. Needs LoreCraft to be open with this project.",
-            json!({ "type": "object", "properties": {
-                "title": { "type": "string", "description": "The new scene's title." },
-                "after": { "type": "string", "description": "A scene id or title to put it after." },
-                "chapter": { "type": "string", "description": "A chapter id or title. Without after, the scene goes at its end." },
-                "book": { "type": "string", "description": "A book title or id. Without after or chapter, it goes in the book's last chapter." },
-                "text": { "type": "string", "description": "The scene text, as Markdown. A blank line starts a new paragraph." },
-                "synopsis": { "type": "string", "description": "One or two sentences." },
-                "pov": { "type": "string", "description": "The point-of-view character's page title." },
-                "location": { "type": "string", "description": "The place's page title." },
-                "cast": { "type": "array", "items": { "type": "string" }, "description": "Page titles of the characters in it." },
-                "reason": { "type": "string", "description": "A short note to the writer saying why." },
-            }, "required": ["title"] }),
-        ),
-        suggest_tool(
-            "propose_new_chapter",
-            "Suggest a new chapter with its first scene. It goes after the chapter you name, or at the end of the book. text is the first scene's text. Nothing is created until the writer accepts it. Needs LoreCraft to be open with this project.",
-            json!({ "type": "object", "properties": {
-                "title": { "type": "string", "description": "The new chapter's title." },
-                "after": { "type": "string", "description": "A chapter id or title to put it after." },
-                "book": { "type": "string", "description": "A book title or id. Without after, it goes at the book's end." },
-                "synopsis": { "type": "string", "description": "The chapter's synopsis." },
-                "scene_title": { "type": "string", "description": "The first scene's title. Default the chapter title." },
-                "scene_synopsis": { "type": "string", "description": "The first scene's synopsis." },
-                "text": { "type": "string", "description": "The first scene's text, as Markdown." },
-                "pov": { "type": "string", "description": "The first scene's point-of-view page title." },
-                "location": { "type": "string", "description": "The first scene's place page title." },
-                "cast": { "type": "array", "items": { "type": "string" }, "description": "Page titles of the characters in the first scene." },
-                "reason": { "type": "string", "description": "A short note to the writer saying why." },
-            }, "required": ["title"] }),
-        ),
-        suggest_tool(
-            "propose_scene_details",
-            "Suggest changes to a scene's details: title, synopsis, point of view, location, cast, status, story date or notes. Give only the fields to change. An empty pov or location clears it. cast replaces the whole list. Needs LoreCraft to be open with this project.",
-            json!({ "type": "object", "properties": {
-                "id": { "type": "string", "description": "The scene id. Used instead of the title." },
-                "title": { "type": "string", "description": "The scene title, to find it." },
-                "new_title": { "type": "string", "description": "A new title for the scene." },
-                "synopsis": { "type": "string" },
-                "pov": { "type": "string", "description": "A page title." },
-                "location": { "type": "string", "description": "A page title." },
-                "cast": { "type": "array", "items": { "type": "string" }, "description": "Page titles." },
-                "status": { "type": "string", "enum": ["idea", "outline", "draft", "revised", "final"] },
-                "story_date": { "type": "string", "description": "The in-world date, as free text." },
-                "notes": { "type": "string", "description": "The scene's notes. Replaces them." },
-                "reason": { "type": "string", "description": "A short note to the writer saying why." },
-            }}),
-        ),
-        suggest_tool(
-            "add_idea",
-            "Leave a short idea in the writer's idea inbox, such as a plot possibility or a question to settle. It changes no page or scene, and the writer decides what to do with it. Needs LoreCraft to be open with this project.",
-            json!({ "type": "object", "properties": {
-                "text": { "type": "string", "description": "The idea, in a sentence or a short paragraph." },
-            }, "required": ["text"] }),
-        ),
-        suggest_tool(
-            "propose_new_page",
-            "Suggest a new wiki page. Nothing is created until the writer accepts it in the app, under Outside suggestions, and it starts as a draft. The body is Markdown and can use [[Page title]] links. Needs LoreCraft to be open with this project.",
-            json!({ "type": "object", "properties": {
-                "title": { "type": "string", "description": "The new page's title." },
-                "type": { "type": "string", "description": "The page type, such as article, character or place. Default article." },
-                "body": { "type": "string", "description": "The page text, as Markdown." },
-                "summary": { "type": "string", "description": "One or two sentences, shown on hover cards and in lists." },
-                "infobox": { "type": "object", "description": "Infobox fields as label and text, such as {\"Born\": \"412 AE\"}.", "additionalProperties": { "type": "string" } },
-                "aliases": { "type": "array", "items": { "type": "string" }, "description": "Other names for the page." },
-                "categories": { "type": "array", "items": { "type": "string" }, "description": "Categories to put the page in." },
-                "reason": { "type": "string", "description": "A short note to the writer saying why." },
-            }, "required": ["title", "body"] }),
-        ),
-    ]
+    areas::all()
+        .into_iter()
+        .map(|t| ToolDef { suggests: t.writes(), name: t.name, description: t.description, schema: t.schema })
+        .collect()
 }
 
 pub fn find_definition(name: &str) -> Option<ToolDef> {
@@ -292,6 +60,10 @@ pub struct Ctx<'a> {
     pub project_name: String,
     /// True when this is the app's working copy, false for a saved file.
     pub live: bool,
+    /// The writer's permission level, when the app is answering. None for a saved file.
+    pub permission: Option<String>,
+    /// The writer shares local-only content with outside tools.
+    pub shares_local_only: bool,
     hidden_pages: HashSet<String>,
     hidden_nodes: HashSet<String>,
     /// Chapters, parts and books holding something hidden. A summary of one may retell it.
@@ -339,6 +111,8 @@ impl<'a> Ctx<'a> {
             conn,
             project_name,
             live,
+            permission: None,
+            shares_local_only: share_local_only,
             hidden_pages,
             hidden_nodes,
             holds_hidden,
@@ -373,14 +147,14 @@ impl<'a> Ctx<'a> {
     }
 }
 
-fn arg_str<'v>(args: &'v Value, name: &str) -> Option<&'v str> {
+pub(crate) fn arg_str<'v>(args: &'v Value, name: &str) -> Option<&'v str> {
     args.get(name)
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|s| !s.is_empty())
 }
 
-fn arg_usize(args: &Value, name: &str) -> Option<usize> {
+pub(crate) fn arg_usize(args: &Value, name: &str) -> Option<usize> {
     args.get(name).and_then(|v| {
         v.as_u64()
             .map(|n| n as usize)
@@ -403,23 +177,10 @@ fn status_words(status: &str) -> String {
     }
 }
 
-/// The one way a tool is run. Suggestion tools are handled in `suggest`.
+/// Runs a read tool. Write tools go through `super::write`.
 pub fn call(ctx: &Ctx, name: &str, args: &Value) -> AppResult<String> {
-    match name {
-        "catch_me_up" => catch_me_up(ctx, args),
-        "search_lore" => search_lore(ctx, args),
-        "get_page" => get_page_text(ctx, args),
-        "list_pages" => list_pages(ctx, args),
-        "get_outline" => get_outline(ctx, args),
-        "get_scene" => get_scene(ctx, args),
-        "get_chapter" => get_chapter(ctx, args),
-        "get_timeline" => get_timeline(ctx),
-        "get_relationships" => get_relationships(ctx, args),
-        "list_findings" => list_findings(ctx, args),
-        "list_canvases" => list_canvases(ctx),
-        "get_canvas" => get_canvas(ctx, args),
-        "get_style_guide" => Ok(style_guide(ctx.conn)?
-            .unwrap_or_else(|| "This project has no style guide yet.".to_string())),
+    match areas::find(name).map(|t| t.handler) {
+        Some(Handler::Read(f)) => f(ctx, args),
         _ => Err(AppError::invalid(format!("There is no tool named {name}."))),
     }
 }
@@ -440,7 +201,7 @@ fn has_canvases(conn: &Connection) -> AppResult<bool> {
         .is_some())
 }
 
-fn list_canvases(ctx: &Ctx) -> AppResult<String> {
+pub(crate) fn list_canvases(ctx: &Ctx) -> AppResult<String> {
     let canvases = if has_canvases(ctx.conn)? {
         crate::rpc::canvas::list_canvases(ctx.conn, false)?
     } else {
@@ -480,7 +241,7 @@ fn canvas_link(ctx: &Ctx, file: &str) -> AppResult<String> {
     })
 }
 
-fn get_canvas(ctx: &Ctx, args: &Value) -> AppResult<String> {
+pub(crate) fn get_canvas(ctx: &Ctx, args: &Value) -> AppResult<String> {
     if !has_canvases(ctx.conn)? {
         return Err(not_visible("That canvas"));
     }
@@ -751,11 +512,11 @@ pub fn page_text(ctx: &Ctx, id: &str) -> AppResult<String> {
     Ok(out)
 }
 
-fn get_page_text(ctx: &Ctx, args: &Value) -> AppResult<String> {
+pub(crate) fn get_page_text(ctx: &Ctx, args: &Value) -> AppResult<String> {
     page_text(ctx, &resolve_page(ctx, args)?)
 }
 
-fn list_pages(ctx: &Ctx, args: &Value) -> AppResult<String> {
+pub(crate) fn list_pages(ctx: &Ctx, args: &Value) -> AppResult<String> {
     let limit = arg_usize(args, "limit").unwrap_or(200).clamp(1, 2000);
     let filter: pages::ListFilter = crate::rpc::parse(json!({
         "status": arg_str(args, "status"),
@@ -792,7 +553,7 @@ fn list_pages(ctx: &Ctx, args: &Value) -> AppResult<String> {
     Ok(out)
 }
 
-fn search_lore(ctx: &Ctx, args: &Value) -> AppResult<String> {
+pub(crate) fn search_lore(ctx: &Ctx, args: &Value) -> AppResult<String> {
     let query = arg_str(args, "query").ok_or_else(|| AppError::invalid("Give words to search for."))?;
     let Some(fts) = search::to_fts_query(query) else {
         return Ok("Nothing to search for in that.".to_string());
@@ -1022,7 +783,7 @@ fn outline_lines(
     Ok(out)
 }
 
-fn get_outline(ctx: &Ctx, args: &Value) -> AppResult<String> {
+pub(crate) fn get_outline(ctx: &Ctx, args: &Value) -> AppResult<String> {
     let wanted = arg_str(args, "book");
     let mut out = String::new();
     for book in books(ctx.conn)? {
@@ -1195,7 +956,7 @@ fn scene_header(ctx: &Ctx, node: &manuscript::NodeMeta) -> AppResult<String> {
     Ok(out)
 }
 
-fn get_scene(ctx: &Ctx, args: &Value) -> AppResult<String> {
+pub(crate) fn get_scene(ctx: &Ctx, args: &Value) -> AppResult<String> {
     let node = resolve_node(ctx, args, &["scene"])?;
     let meta = &node.meta;
     let chapter: Option<String> = match meta.parent_id.as_deref() {
@@ -1224,7 +985,7 @@ fn get_scene(ctx: &Ctx, args: &Value) -> AppResult<String> {
     Ok(out)
 }
 
-fn get_chapter(ctx: &Ctx, args: &Value) -> AppResult<String> {
+pub(crate) fn get_chapter(ctx: &Ctx, args: &Value) -> AppResult<String> {
     let chapter = resolve_node(ctx, args, &["chapter", "part"])?;
     let limit = arg_usize(args, "max_chars")
         .unwrap_or(DEFAULT_CHAPTER_CHARS)
@@ -1279,7 +1040,7 @@ fn get_chapter(ctx: &Ctx, args: &Value) -> AppResult<String> {
     Ok(out)
 }
 
-fn get_timeline(ctx: &Ctx) -> AppResult<String> {
+pub(crate) fn get_timeline(ctx: &Ctx) -> AppResult<String> {
     let data = extras::timeline_data(ctx.conn)?;
     let mut out = String::new();
     let scenes: Vec<&Value> = data["scenes"]
@@ -1340,7 +1101,7 @@ fn get_timeline(ctx: &Ctx) -> AppResult<String> {
     Ok(out)
 }
 
-fn get_relationships(ctx: &Ctx, args: &Value) -> AppResult<String> {
+pub(crate) fn get_relationships(ctx: &Ctx, args: &Value) -> AppResult<String> {
     let only = match arg_str(args, "page") {
         Some(title) => Some(resolve_page(ctx, &json!({ "title": title }))?),
         None => None,
@@ -1389,7 +1150,7 @@ fn get_relationships(ctx: &Ctx, args: &Value) -> AppResult<String> {
     Ok(out)
 }
 
-fn list_findings(ctx: &Ctx, args: &Value) -> AppResult<String> {
+pub(crate) fn list_findings(ctx: &Ctx, args: &Value) -> AppResult<String> {
     let status = arg_str(args, "status").unwrap_or("open");
     let limit = arg_usize(args, "limit").unwrap_or(100).clamp(1, 1000);
     let mut stmt = ctx.conn.prepare(
@@ -1573,7 +1334,7 @@ fn main_page_lines(ctx: &Ctx) -> AppResult<Vec<String>> {
 }
 
 /// One call to get an AI up to speed, in the order that matters most when space is short.
-fn catch_me_up(ctx: &Ctx, args: &Value) -> AppResult<String> {
+pub(crate) fn catch_me_up(ctx: &Ctx, args: &Value) -> AppResult<String> {
     let limit = arg_usize(args, "max_chars")
         .unwrap_or(DEFAULT_CATCH_UP_CHARS)
         .clamp(MIN_CATCH_UP_CHARS, MAX_CHARS);

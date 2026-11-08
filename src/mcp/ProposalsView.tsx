@@ -1,19 +1,18 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { t } from '../lib/i18n';
 import { errorMessage } from '../lib/rpc';
-import { renderMarkdownSafe } from '../editor/convert';
-import { followRenderedLink } from '../editor/renderedLinks';
 import { toast } from '../shell/toasts';
 import { confirm } from '../shell/dialogs';
 import { useDataVersion } from '../state/events';
 import { useLocale } from '../state/language';
-import { isFocusedPane, useNav, usePaneId, type Route } from '../state/nav';
+import { isFocusedPane, useNav, usePaneId } from '../state/nav';
 import { useProject } from '../state/project';
 import { useSettings } from '../state/settings';
-import { compareTexts, type DiffLine } from '../wiki/diff';
-import { acceptProposal, rejectProposal, reviewInDocument } from './actions';
-import { isTextProposal, mcp, type InsertPayload, type PageRef, type Proposal, type SceneDetails, type TextProposal } from './api';
+import { acceptProposal, canUndo, rejectProposal, reviewInDocument, undoProposal } from './actions';
+import { mcp, type AnyProposal, type TextProposal } from './api';
+import { kindFor } from './kinds';
+import { useOpenRoute } from './kinds/shared';
 import { listInSight, nextReady, showListIn, useListFocus } from './pin';
 
 /** A translated sentence with an element, such as a link, where `{name}` is. */
@@ -125,251 +124,24 @@ export function ProposalsBadge() {
   );
 }
 
-function DiffView({ lines }: { lines: DiffLine[] }) {
-  return (
-    <div className="mcp-diff">
-      {lines.map((line, index) => (
-        <p key={index} className="mcp-diff-line">
-          {line.runs.map((run, i) =>
-            run.kind === 'ins' ? (
-              <ins key={i}>{run.text}</ins>
-            ) : run.kind === 'del' ? (
-              <del key={i}>{run.text}</del>
-            ) : (
-              <span key={i}>{run.text}</span>
-            ),
-          )}
-        </p>
-      ))}
-    </div>
-  );
-}
-
 function when(iso: string): string {
   return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
-/** Opens a route the way the list is shown: beside it when pinned or split, else in place. */
-function useOpenRoute(): (route: Route, keepFocus?: boolean) => void {
-  const go = useNav((s) => s.go);
-  const split = useNav((s) => s.panes.length > 1);
-  const pinned = useSettings((s) => s.settings.mcp.pinned);
-  return (route, keepFocus = true) => {
-    // Pinned or split, the list stays where it is and the page opens beside it.
-    if (pinned || split) useNav.getState().openBeside(route, { keepFocus });
-    else go(route);
-  };
+/** The card body its kind declares, or a plain line for a kind this version does not know. */
+function ProposalDetails({ proposal }: { proposal: AnyProposal }) {
+  const kind = kindFor(proposal.kind);
+  if (!kind) return <p className="mcp-proposal-title">{proposal.title || t('Untitled')}</p>;
+  const Card = kind.Card;
+  return <Card proposal={proposal} />;
 }
 
-function targetRoute(proposal: { targetKind: 'page' | 'node'; targetId: string }): Route {
-  return proposal.targetKind === 'page' ? { view: 'page', id: proposal.targetId } : { view: 'write', nodeId: proposal.targetId };
+function acceptedMessage(proposal: AnyProposal): string {
+  return kindFor(proposal.kind)?.accepted() ?? t('Suggestion applied. The old version is in History.');
 }
 
-/** Long previews are cut, since the scene itself shows them in full. */
-const PREVIEW_LINES = 60;
 
-function LongDiff({ lines }: { lines: DiffLine[] }) {
-  useLocale();
-  const [all, setAll] = useState(false);
-  const shown = all ? lines : lines.slice(0, PREVIEW_LINES);
-  return (
-    <>
-      <DiffView lines={shown} />
-      {!all && lines.length > PREVIEW_LINES && (
-        <button type="button" className="link-button small" onClick={() => setAll(true)}>
-          {t('Show all {count} paragraphs', { count: lines.length })}
-        </button>
-      )}
-    </>
-  );
-}
-
-function insertPlace(payload: InsertPayload): string {
-  if (payload.at === 'start') return t('Adds text at the start.');
-  if (payload.at === 'end') return t('Adds text at the end.');
-  const quote = (payload.quote ?? '').slice(0, 120);
-  return payload.at === 'after' ? t('Adds text after “{quote}”.', { quote }) : t('Adds text before “{quote}”.', { quote });
-}
-
-function TextDetails({ proposal }: { proposal: TextProposal }) {
-  useLocale();
-  const openRoute = useOpenRoute();
-  const lines = useMemo(() => {
-    if (proposal.kind === 'edit') return compareTexts(proposal.payload.quote, proposal.payload.replacement);
-    if (proposal.kind === 'insert') return compareTexts('', proposal.payload.text);
-    return compareTexts(proposal.payload.original ?? '', proposal.payload.replacement);
-  }, [proposal]);
-  const sentence = proposal.targetKind === 'page' ? t('Change to the page {title}') : t('Change to the scene {title}');
-  return (
-    <>
-      <p className="mcp-proposal-title">
-        {withElement(
-          sentence,
-          'title',
-          <button type="button" className="link-button" onClick={() => openRoute(targetRoute(proposal))}>
-            {proposal.title || t('Untitled')}
-          </button>,
-        )}
-      </p>
-      {proposal.kind === 'insert' && <p className="muted small">{insertPlace(proposal.payload)}</p>}
-      {proposal.kind === 'rewrite' && (
-        <p className="muted small">{proposal.payload.mode === 'whole' ? t('Rewrites the whole text.') : t('Rewrites a passage.')}</p>
-      )}
-      {lines.length > 0 ? <LongDiff lines={lines} /> : <p className="muted">{t('Removes the quoted text.')}</p>}
-    </>
-  );
-}
-
-function peopleFacts(scene: { pov?: PageRef | null; location?: PageRef | null; cast?: PageRef[] }): string[] {
-  return [
-    scene.pov ? t('Point of view: {name}', { name: scene.pov.title }) : '',
-    scene.location ? t('Location: {name}', { name: scene.location.title }) : '',
-    scene.cast?.length ? t('Cast: {names}', { names: scene.cast.map((p) => p.title).join(', ') }) : '',
-  ].filter(Boolean);
-}
-
-function MarkdownPreview({ text }: { text: string | undefined }) {
-  const html = useMemo(() => renderMarkdownSafe(text ?? ''), [text]);
-  if (!text?.trim()) return null;
-  // renderMarkdownSafe escapes all HTML, since this text came from an outside AI.
-  return <div className="mcp-new-page prose" onClick={followRenderedLink} dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
-function NewSceneDetails({ proposal }: { proposal: Extract<Proposal, { kind: 'newScene' | 'newChapter' }> }) {
-  useLocale();
-  const { payload } = proposal;
-  const isChapter = proposal.kind === 'newChapter';
-  const scene = proposal.kind === 'newChapter' ? proposal.payload.scene : proposal.payload;
-  let place: string;
-  if (proposal.kind === 'newChapter') {
-    place = proposal.payload.afterTitle
-      ? t('After the chapter {name}, in {book}.', { name: proposal.payload.afterTitle, book: payload.bookTitle })
-      : t('At the end of {book}.', { book: payload.bookTitle });
-  } else {
-    place = proposal.payload.afterTitle
-      ? t('After the scene {name}, in {chapter}.', { name: proposal.payload.afterTitle, chapter: proposal.payload.chapterTitle })
-      : t('At the end of the chapter {chapter}.', { chapter: proposal.payload.chapterTitle });
-  }
-  const facts = [
-    place,
-    isChapter ? t('First scene: {name}', { name: scene.title }) : '',
-    ...peopleFacts(scene),
-  ].filter(Boolean);
-  return (
-    <>
-      <p className="mcp-proposal-title">
-        {withElement(isChapter ? t('New chapter: {title}') : t('New scene: {title}'), 'title', <strong>{payload.title}</strong>)}
-      </p>
-      <p className="muted small">{facts.join(' ')}</p>
-      {payload.synopsis && <p>{payload.synopsis}</p>}
-      {isChapter && scene.synopsis && <p>{scene.synopsis}</p>}
-      <MarkdownPreview text={scene.text} />
-    </>
-  );
-}
-
-function detailText(key: keyof SceneDetails, value: SceneDetails[keyof SceneDetails]): string {
-  if (value === null || value === undefined || value === '') return t('(none)');
-  if (key === 'cast') return (value as PageRef[]).map((p) => p.title).join(', ') || t('(none)');
-  if (key === 'pov' || key === 'location') return (value as PageRef).title;
-  return String(value);
-}
-
-function SceneDetailsCard({ proposal }: { proposal: Extract<Proposal, { kind: 'sceneDetails' }> }) {
-  useLocale();
-  const openRoute = useOpenRoute();
-  const { changes, before } = proposal.payload;
-  const labels: Record<keyof SceneDetails, string> = {
-    title: t('Title'),
-    synopsis: t('Synopsis'),
-    pov: t('Point of view'),
-    location: t('Location'),
-    cast: t('Cast'),
-    status: t('Status'),
-    storyDate: t('Story date'),
-    notes: t('Notes'),
-  };
-  const keys = (Object.keys(labels) as (keyof SceneDetails)[]).filter((key) => changes[key] !== undefined);
-  return (
-    <>
-      <p className="mcp-proposal-title">
-        {withElement(
-          t('Details of the scene {title}'),
-          'title',
-          <button type="button" className="link-button" onClick={() => openRoute({ view: 'write', nodeId: proposal.targetId })}>
-            {proposal.title || t('Untitled')}
-          </button>,
-        )}
-      </p>
-      <dl className="mcp-infobox mcp-details">
-        {keys.map((key) => (
-          <div key={key}>
-            <dt>{labels[key]}</dt>
-            <dd>
-              <DiffView lines={compareTexts(detailText(key, before[key]), detailText(key, changes[key]))} />
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </>
-  );
-}
-
-function ProposalDetails({ proposal }: { proposal: Proposal }) {
-  if (isTextProposal(proposal)) return <TextDetails proposal={proposal} />;
-  if (proposal.kind === 'newScene' || proposal.kind === 'newChapter') return <NewSceneDetails proposal={proposal} />;
-  if (proposal.kind === 'sceneDetails') return <SceneDetailsCard proposal={proposal} />;
-  return <NewPageDetails proposal={proposal} />;
-}
-
-function acceptedMessage(proposal: Proposal): string {
-  switch (proposal.kind) {
-    case 'newPage':
-      return t('Page created as a draft.');
-    case 'newScene':
-      return t('Scene added.');
-    case 'newChapter':
-      return t('Chapter added.');
-    case 'sceneDetails':
-      return t('Scene details changed.');
-    default:
-      return t('Suggestion applied. The old version is in History.');
-  }
-}
-
-function NewPageDetails({ proposal }: { proposal: Extract<Proposal, { kind: 'newPage' }> }) {
-  useLocale();
-  const { payload } = proposal;
-  const html = useMemo(() => renderMarkdownSafe(payload.body), [payload.body]);
-  // Each part is a whole sentence, so they join with a full stop.
-  const facts = [
-    t('Type: {type}', { type: payload.pageType }),
-    t('Starts as a draft'),
-    payload.aliases?.length ? t('Also known as {names}', { names: payload.aliases.join(', ') }) : '',
-    payload.categories?.length ? t('Categories: {names}', { names: payload.categories.join(', ') }) : '',
-  ].filter(Boolean);
-  return (
-    <>
-      <p className="mcp-proposal-title">{withElement(t('New page: {title}'), 'title', <strong>{payload.title}</strong>)}</p>
-      <p className="muted small">{facts.join('. ')}</p>
-      {payload.summary && <p>{payload.summary}</p>}
-      {payload.infobox && payload.infobox.length > 0 && (
-        <dl className="mcp-infobox">
-          {payload.infobox.map((field) => (
-            <div key={field.label}>
-              <dt>{field.label}</dt>
-              <dd>{field.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
-      {/* renderMarkdownSafe escapes all HTML, since this text came from an outside AI. */}
-      <div className="mcp-new-page prose" onClick={followRenderedLink} dangerouslySetInnerHTML={{ __html: html }} />
-    </>
-  );
-}
-
-function ProposalCard({ proposal, onHandled }: { proposal: Proposal; onHandled: (id: string) => void }) {
+function ProposalCard({ proposal, onHandled }: { proposal: AnyProposal; onHandled: (id: string) => void }) {
   useLocale();
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -391,11 +163,11 @@ function ProposalCard({ proposal, onHandled }: { proposal: Proposal; onHandled: 
     }
   };
   const review = async () => {
-    if (!isTextProposal(proposal)) return;
+    if (!kindFor(proposal.kind)?.reviewable) return;
     setBusy(true);
     setProblem(null);
     try {
-      const result = await reviewInDocument(proposal, (route) => openRoute(route, false));
+      const result = await reviewInDocument(proposal as unknown as TextProposal, (route) => openRoute(route, false));
       if (!result.ok) setProblem(result.reason);
     } catch (error) {
       setProblem(errorMessage(error));
@@ -442,7 +214,7 @@ function ProposalCard({ proposal, onHandled }: { proposal: Proposal; onHandled: 
         >
           {t('Accept')}
         </button>
-        {isTextProposal(proposal) && (
+        {kindFor(proposal.kind)?.reviewable && (
           <button
             type="button"
             className="btn"
@@ -472,6 +244,78 @@ function ProposalCard({ proposal, onHandled }: { proposal: Proposal; onHandled: 
   );
 }
 
+/** One change an outside AI made directly, with Undo. */
+function AppliedCard({ proposal }: { proposal: AnyProposal }) {
+  useLocale();
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const name = proposal.title || t('this change');
+  const undo = async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      const result = await undoProposal(proposal);
+      if (result.ok) toast(t('Undone.'), 'success');
+      else setProblem(result.reason);
+    } catch (error) {
+      setProblem(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <article className="mcp-proposal is-applied" data-applied={proposal.id} aria-label={t('Applied: {name}', { name })}>
+      <header className="mcp-proposal-from muted small">
+        {t('Made by {client}, {time}', { client: proposal.client, time: when(proposal.createdAt) })}
+      </header>
+      <ProposalDetails proposal={proposal} />
+      {problem && (
+        <p className="mcp-stale small" role="alert">
+          {problem}
+        </p>
+      )}
+      {canUndo(proposal) && (
+        <div className="mcp-actions">
+          <button type="button" className="btn" disabled={busy} aria-label={t('Undo: {name}', { name })} onClick={() => void undo()}>
+            {t('Undo')}
+          </button>
+        </div>
+      )}
+    </article>
+  );
+}
+
+/** Changes made directly at the edit level, newest first. They never count on the badge. */
+function AppliedList() {
+  useLocale();
+  const version = useDataVersion('proposals');
+  const [applied, setApplied] = useState<AnyProposal[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void mcp.proposals('applied').then(
+      (list) => {
+        if (alive) setApplied(list);
+      },
+      () => {},
+    );
+    return () => {
+      alive = false;
+    };
+  }, [version]);
+  if (applied.length === 0) return null;
+  return (
+    <section className="mcp-applied" aria-labelledby="mcp-applied-heading">
+      <h2 id="mcp-applied-heading" className="mcp-applied-title">
+        {t('Applied by outside AI ({count})', { count: applied.length })}
+      </h2>
+      <p className="muted small">{t('An outside AI made these changes directly, as you allowed in Settings. Undo takes one back if nothing has changed it since.')}</p>
+      {applied.map((proposal) => (
+        <AppliedCard key={proposal.id} proposal={proposal} />
+      ))}
+    </section>
+  );
+}
+
 /** What happened when many were handled at once. */
 export interface BulkOutcome {
   done: number;
@@ -481,8 +325,8 @@ export interface BulkOutcome {
 
 /** Handles each in turn. One that fails is counted and left waiting; the rest go on. */
 export async function handleAll(
-  proposals: Proposal[],
-  handle: (proposal: Proposal) => Promise<boolean>,
+  proposals: AnyProposal[],
+  handle: (proposal: AnyProposal) => Promise<boolean>,
 ): Promise<BulkOutcome> {
   let done = 0;
   let skipped = 0;
@@ -497,7 +341,7 @@ export async function handleAll(
   return { done, skipped };
 }
 
-function BulkActions({ proposals }: { proposals: Proposal[] }) {
+function BulkActions({ proposals }: { proposals: AnyProposal[] }) {
   useLocale();
   const [busy, setBusy] = useState(false);
   const count = proposals.length;
@@ -573,7 +417,7 @@ export function ProposalsView() {
   const go = useNav((s) => s.go);
   const paneId = usePaneId();
   const focusPending = useListFocus((s) => s.pending);
-  const [proposals, setProposals] = useState<Proposal[] | null>(null);
+  const [proposals, setProposals] = useState<AnyProposal[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -661,6 +505,7 @@ export function ProposalsView() {
       )}
       {proposals && <BulkActions proposals={proposals} />}
       {proposals?.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} onHandled={onHandled} />)}
+      <AppliedList />
     </div>
   );
 }

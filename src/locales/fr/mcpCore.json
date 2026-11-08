@@ -1,0 +1,21 @@
+{
+  "This kind of change needs a newer version of LoreCraft.": "Ce type de modification demande une version plus récente de LoreCraft.",
+  "This change cannot be undone here. Open History to restore an older version.": "Cette modification ne peut pas être annulée ici. Ouvrez l’historique pour restaurer une version plus ancienne.",
+  "{client} changed {title}. You can undo it under Outside suggestions.": "{client} a modifié {title}. Vous pouvez l’annuler dans Suggestions extérieures.",
+  "This has changed since the outside AI made the change, so undoing it could lose newer work. Open History to restore an older version.": "Ceci a changé depuis la modification de l’IA extérieure, et l’annuler pourrait perdre un travail plus récent. Ouvrez l’historique pour restaurer une version plus ancienne.",
+  "What this change made or changed has been deleted.": "Ce que cette modification a créé ou modifié a été supprimé.",
+  "There is no earlier version to go back to.": "Il n’y a pas de version antérieure à restaurer.",
+  "Change to the style guide": "Modification du guide de style",
+  "Style guide changed.": "Guide de style modifié.",
+  "Let AI tools outside LoreCraft, such as Claude Code or OpenCode with a local model, read your lore and your book. You choose below whether they can only read, suggest changes for you to accept, or make changes directly. It works only from this computer.": "Permettez à des outils d’IA extérieurs à LoreCraft, comme Claude Code ou OpenCode avec un modèle local, de lire votre univers et votre livre. Choisissez ci-dessous s’ils peuvent seulement lire, suggérer des modifications à accepter, ou modifier directement. Cela ne fonctionne que depuis cet ordinateur.",
+  "Make changes directly": "Modifier directement",
+  "Changes are made at once, without asking you first. Each one is saved in History and listed under Outside suggestions, where you can undo it. Tools still cannot change these settings, your AI providers or keys, or what is local only.": "Les modifications sont faites tout de suite, sans vous demander. Chacune est enregistrée dans l’historique et listée dans Suggestions extérieures, où vous pouvez l’annuler. Les outils ne peuvent toujours pas changer ces réglages, vos fournisseurs ou clés d’IA, ni ce qui est local uniquement.",
+  "Tools can read, but cannot suggest or make any change.": "Les outils peuvent lire, mais ne peuvent rien suggérer ni modifier.",
+  "Each change waits under Outside suggestions until you accept or reject it.": "Chaque modification attend dans Suggestions extérieures jusqu’à ce que vous l’acceptiez ou la refusiez.",
+  "this change": "cette modification",
+  "Applied: {name}": "Appliqué : {name}",
+  "Made by {client}, {time}": "Fait par {client}, {time}",
+  "Undo: {name}": "Annuler : {name}",
+  "Applied by outside AI ({count})": "Appliqué par une IA extérieure ({count})",
+  "An outside AI made these changes directly, as you allowed in Settings. Undo takes one back if nothing has changed it since.": "Une IA extérieure a fait ces modifications directement, comme vous l’avez permis dans les réglages. Annuler en défait une si rien ne l’a modifiée depuis."
+}

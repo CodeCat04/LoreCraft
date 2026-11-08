@@ -1,17 +1,21 @@
 //! The MCP server, which lets AI tools outside the app read the lore and the book and
 //! propose changes. See docs/MCP.md.
 //!
-//! `tools` and `text` read a project through any `&Connection`, `suggest` stores what a
-//! client proposes, `server` speaks the protocol, `http` listens inside the app, and `cli`
+//! `areas` declares every tool. `tools` and `text` read a project through any
+//! `&Connection`, `write` is the one path a change takes, `suggest` stores it, `limits` holds
+//! what no tool may do, `server` speaks the protocol, `http` listens inside the app, and `cli`
 //! is `lorecraft.exe --mcp` over stdio.
 
+pub mod areas;
 pub mod cli;
 pub mod config;
 pub mod http;
+pub mod limits;
 pub mod server;
 pub mod suggest;
 pub mod text;
 pub mod tools;
+pub mod write;
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
@@ -24,7 +28,7 @@ use crate::db;
 use crate::engine::Engine;
 use crate::error::{AppError, AppResult};
 use crate::paths::Paths;
-use config::{Discovery, McpSettings, PERMISSION_SUGGEST};
+use config::{Discovery, McpSettings, PERMISSION_EDIT, PERMISSION_READ, PERMISSION_SUGGEST};
 
 /// Enough to answer "what has it been doing". It is kept in memory only.
 const ACTIVITY_KEPT: usize = 100;
@@ -243,8 +247,8 @@ pub fn update(
             }
         }
         if let Some(permission) = permission {
-            if permission != config::PERMISSION_READ && permission != PERMISSION_SUGGEST {
-                return Err(AppError::invalid("Permission must be read or suggest."));
+            if ![PERMISSION_READ, PERMISSION_SUGGEST, PERMISSION_EDIT].contains(&permission.as_str()) {
+                return Err(AppError::invalid("Permission must be read, suggest or edit."));
             }
             settings.permission = permission;
         }
@@ -280,7 +284,8 @@ pub fn read_live<T>(
     let name = engine.status().name;
     engine
         .read(|conn| {
-            let ctx = tools::Ctx::new(conn, name, true, settings.share_local_only)?;
+            let mut ctx = tools::Ctx::new(conn, name, true, settings.share_local_only)?;
+            ctx.permission = Some(settings.permission.clone());
             f(&ctx)
         })
         .map_err(|e| {
@@ -300,10 +305,18 @@ pub fn call_live(engine: &Engine, client: &str, name: &str, args: &Value) -> App
     let outcome = (|| {
         if tools::is_suggestion(name) {
             let settings = engine.mcp.settings();
-            if settings.permission != PERMISSION_SUGGEST {
+            if settings.permission == PERMISSION_READ {
                 return Err(AppError::new("READ_ONLY", suggest::READ_ONLY));
             }
-            suggest::call(engine, client, name, args, settings.share_local_only).map_err(|e| {
+            suggest::call_as(
+                engine,
+                client,
+                name,
+                args,
+                settings.share_local_only,
+                &settings.permission,
+                write::Waits::default(),
+            ).map_err(|e| {
                 if e.code == "NO_PROJECT" {
                     AppError::new(
                         "NO_PROJECT",

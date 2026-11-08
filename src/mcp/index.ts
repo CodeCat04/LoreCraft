@@ -5,6 +5,7 @@ import { registerCommands } from '../shell/commands';
 import { useNav } from '../state/nav';
 import { useProject } from '../state/project';
 import { useSettings } from '../state/settings';
+import { startAutoApply } from './auto';
 import { showPinnedList } from './ProposalsView';
 
 export { McpSettings } from './McpSettings';
@@ -36,5 +37,6 @@ function registerMcpCommands() {
 
 export function registerMcp() {
   registerMcpCommands();
+  startAutoApply();
   subscribeLocale(registerMcpCommands);
 }

@@ -1,31 +1,39 @@
-//! Suggestions from outside tools. Nothing here touches a document: a suggestion is one
-//! row in `proposals`, and the writer accepts or rejects it in the app. Accepting runs in
-//! `src/mcp/apply.ts`, where the editor's schema and Markdown parser live.
+//! Suggestions from outside tools, as rows in `proposals`, and the helpers write tools share.
+//! Nothing here touches a document. The app applies a suggestion when the writer accepts it,
+//! or at once at the edit level, with the code in `src/mcp/kinds/`. See `super::write`.
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Map, Value};
 
-use super::text::{
-    closest_passage, cut, doc_to_text, find_all, needle_for, normalize_quote, normalize_with_map,
-    Normalized,
-};
-use super::tools::{resolve_node, resolve_page, resolve_scene_id, Ctx};
+use super::areas::{self, Handler};
+use super::config::PERMISSION_SUGGEST;
+use super::limits;
+use super::text::cut;
+use super::tools::{resolve_node, resolve_page, Ctx};
+use super::write::{self, Draft, WriteCx};
 use crate::content::title_key;
 use crate::db;
 use crate::engine::Engine;
 use crate::error::{AppError, AppResult};
-use crate::rpc::{manuscript, pages};
+use crate::rpc::manuscript;
 
 pub const STATUS_PENDING: &str = "pending";
-pub const NEEDS_APP: &str = "Suggestions need LoreCraft to be open with this project, so the writer can review them. Open it there and try again. Reading works from the last saved file in the meantime.";
-pub const READ_ONLY: &str = "The writer has set outside tools to read only, so suggestions are turned off. They can allow them in LoreCraft under Settings, AI tools (MCP).";
+/// Stored at the edit level, for the app's window to pick up and apply.
+pub const STATUS_AUTO: &str = "auto";
+/// The window has picked it up and is applying it.
+pub const STATUS_APPLYING: &str = "applying";
+/// Applied at the edit level. It shows under Applied by outside AI, with Undo.
+pub const STATUS_APPLIED: &str = "applied";
+pub const STATUS_FAILED: &str = "failed";
+pub const STATUS_UNDONE: &str = "undone";
+
+pub const NEEDS_APP: &str = "Changes need LoreCraft to be open with this project, so the writer can see them. Open it there and try again. Reading works from the last saved file in the meantime.";
+pub const READ_ONLY: &str = "The writer has set outside tools to read only, so changes and suggestions are turned off. They can allow them in LoreCraft under Settings, AI tools (MCP).";
 
 /// A client that keeps proposing should not bury the writer.
-const MAX_PENDING: i64 = 500;
-const MAX_TEXT: usize = 500_000;
-const MAX_LABEL: usize = 200;
-/// An idea is a note, not a chapter.
-const MAX_IDEA_CHARS: usize = 4000;
+pub const MAX_PENDING: i64 = 500;
+pub const MAX_TEXT: usize = 500_000;
+pub const MAX_LABEL: usize = 200;
 
 /// Projects made before this table existed have no row to read, and gain it on first use.
 const TABLE: &str = "CREATE TABLE IF NOT EXISTS proposals (
@@ -52,6 +60,7 @@ fn has_table(conn: &Connection) -> AppResult<bool> {
         .is_some())
 }
 
+/// What waits for the writer. The badge shows this, so changes already made never count.
 pub fn pending_count(conn: &Connection) -> AppResult<i64> {
     if !has_table(conn)? {
         return Ok(0);
@@ -63,14 +72,25 @@ pub fn pending_count(conn: &Connection) -> AppResult<i64> {
     )?)
 }
 
+/// What counts against the cap: waiting for the writer, or for the window.
+fn open_count(conn: &Connection) -> AppResult<i64> {
+    Ok(conn.query_row(
+        "SELECT COUNT(*) FROM proposals WHERE status IN (?1, ?2, ?3)",
+        [STATUS_PENDING, STATUS_AUTO, STATUS_APPLYING],
+        |r| r.get(0),
+    )?)
+}
+
+/// Oldest first, except applied changes, which come newest first and at most `limit`.
 pub fn list(conn: &Connection, status: &str) -> AppResult<Vec<Value>> {
     if !has_table(conn)? {
         return Ok(Vec::new());
     }
-    let mut stmt = conn.prepare(
+    let order = if status == STATUS_APPLIED { "created_at DESC, id DESC LIMIT 200" } else { "created_at, id" };
+    let mut stmt = conn.prepare(&format!(
         "SELECT id, client, kind, target_kind, target_id, title, payload, status, created_at
-         FROM proposals WHERE status = ?1 ORDER BY created_at, id",
-    )?;
+         FROM proposals WHERE status = ?1 ORDER BY {order}"
+    ))?;
     let rows = stmt.query_map([status], |r| {
         let payload: String = r.get(6)?;
         Ok(json!({
@@ -88,32 +108,83 @@ pub fn list(conn: &Connection, status: &str) -> AppResult<Vec<Value>> {
     Ok(rows.collect::<Result<_, _>>()?)
 }
 
+/// A suggestion's status and payload, for a call waiting on it.
+pub fn status_of(conn: &Connection, id: &str) -> AppResult<Option<(String, Value)>> {
+    if !has_table(conn)? {
+        return Ok(None);
+    }
+    Ok(conn
+        .query_row("SELECT status, payload FROM proposals WHERE id = ?1", [id], |r| {
+            let payload: String = r.get(1)?;
+            Ok((r.get(0)?, serde_json::from_str(&payload).unwrap_or(Value::Null)))
+        })
+        .optional()?)
+}
+
+/// The step each status may take, and from where.
+fn from_status(status: &str) -> Option<&'static str> {
+    match status {
+        "accepted" | "rejected" => Some(STATUS_PENDING),
+        STATUS_APPLYING => Some(STATUS_AUTO),
+        STATUS_APPLIED | STATUS_FAILED => Some(STATUS_APPLYING),
+        STATUS_UNDONE => Some(STATUS_APPLIED),
+        _ => None,
+    }
+}
+
 /// Marks a suggestion as dealt with. Returns false if it already was.
 pub fn resolve(conn: &Connection, id: &str, status: &str) -> AppResult<bool> {
-    if !matches!(status, "accepted" | "rejected") {
-        return Err(AppError::invalid("A suggestion is accepted or rejected."));
-    }
+    resolve_with(conn, id, status, &Map::new())
+}
+
+/// Moves a suggestion on, merging `extra` into its payload: `undo` for an applied change,
+/// `error` for a failed one. Returns false if it was not where that step starts.
+pub fn resolve_with(conn: &Connection, id: &str, status: &str, extra: &Map<String, Value>) -> AppResult<bool> {
+    let Some(from) = from_status(status) else {
+        return Err(AppError::invalid("A suggestion is accepted, rejected, applied, failed or undone."));
+    };
     if !has_table(conn)? {
         return Err(AppError::not_found("That suggestion"));
     }
+    let Some((now, mut payload)) = status_of(conn, id)? else {
+        return Ok(false);
+    };
+    if now != from {
+        return Ok(false);
+    }
+    if let Value::Object(map) = &mut payload {
+        for (key, value) in extra {
+            if matches!(key.as_str(), "undo" | "error") {
+                map.insert(key.clone(), value.clone());
+            }
+        }
+    }
     let changed = conn.execute(
-        "UPDATE proposals SET status = ?1 WHERE id = ?2 AND status = ?3",
-        params![status, id, STATUS_PENDING],
+        "UPDATE proposals SET status = ?1, payload = ?2 WHERE id = ?3 AND status = ?4",
+        params![status, payload.to_string(), id, from],
     )?;
     Ok(changed > 0)
 }
 
-fn required<'a>(args: &'a Value, name: &str) -> AppResult<&'a str> {
+/// The window did not pick it up in time, so it waits for the writer instead.
+pub fn back_to_pending(conn: &Connection, id: &str) -> AppResult<bool> {
+    Ok(conn.execute(
+        "UPDATE proposals SET status = ?1 WHERE id = ?2 AND status = ?3",
+        params![STATUS_PENDING, id, STATUS_AUTO],
+    )? > 0)
+}
+
+pub fn required<'a>(args: &'a Value, name: &str) -> AppResult<&'a str> {
     args.get(name)
         .and_then(Value::as_str)
         .ok_or_else(|| AppError::invalid(format!("{name} is required.")))
 }
 
-fn optional<'a>(args: &'a Value, name: &str) -> &'a str {
+pub fn optional<'a>(args: &'a Value, name: &str) -> &'a str {
     args.get(name).and_then(Value::as_str).unwrap_or("").trim()
 }
 
-fn check_size(name: &str, text: &str) -> AppResult<()> {
+pub fn check_size(name: &str, text: &str) -> AppResult<()> {
     if text.len() > MAX_TEXT {
         return Err(AppError::invalid(format!(
             "{name} is too long. Suggest a smaller change."
@@ -122,7 +193,7 @@ fn check_size(name: &str, text: &str) -> AppResult<()> {
     Ok(())
 }
 
-fn string_list(args: &Value, name: &str) -> Vec<String> {
+pub fn string_list(args: &Value, name: &str) -> Vec<String> {
     args.get(name)
         .and_then(Value::as_array)
         .map(|items| {
@@ -136,19 +207,18 @@ fn string_list(args: &Value, name: &str) -> Vec<String> {
         .unwrap_or_default()
 }
 
-struct Row {
-    kind: &'static str,
-    target_kind: Option<String>,
-    target_id: Option<String>,
-    title: String,
-    payload: Value,
+/// The note to the writer saying why, cut to size.
+pub fn reason(args: &Value) -> Value {
+    json!(cut(optional(args, "reason"), 2000))
 }
 
-fn insert(engine: &Engine, client: &str, row: Row) -> AppResult<String> {
+/// Stores a draft with the given status. The cap counts what waits for the writer or the
+/// window, so a client that keeps calling cannot bury either.
+pub fn insert(engine: &Engine, client: &str, draft: &Draft, status: &str) -> AppResult<String> {
     let id = db::new_id();
     engine.write(|tx| {
         tx.execute_batch(TABLE)?;
-        if pending_count(tx)? >= MAX_PENDING {
+        if open_count(tx)? >= MAX_PENDING {
             return Err(AppError::new(
                 "TOO_MANY",
                 "Too many suggestions are waiting for the writer. Ask them to review the ones in Outside suggestions first.",
@@ -160,12 +230,12 @@ fn insert(engine: &Engine, client: &str, row: Row) -> AppResult<String> {
             params![
                 id,
                 cut(client, MAX_LABEL),
-                row.kind,
-                row.target_kind,
-                row.target_id,
-                row.title,
-                row.payload.to_string(),
-                STATUS_PENDING,
+                draft.kind,
+                draft.target_kind,
+                draft.target_id,
+                draft.title,
+                draft.payload.to_string(),
+                status,
                 db::now(),
             ],
         )?;
@@ -175,243 +245,11 @@ fn insert(engine: &Engine, client: &str, row: Row) -> AppResult<String> {
     Ok(id)
 }
 
-/// A page or scene a suggestion changes, as the client may see it.
-struct Target {
-    kind: &'static str,
-    id: String,
-    title: String,
-    text: String,
-}
-
-impl Target {
-    fn read_with(&self) -> &'static str {
-        if self.kind == "page" {
-            "get_page"
-        } else {
-            "get_scene"
-        }
-    }
-}
-
-fn load_target(engine: &Engine, args: &Value, share: bool, default: &str) -> AppResult<Target> {
-    let target = args
-        .get("target")
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|t| !t.is_empty())
-        .unwrap_or(default);
-    engine.read(|conn| {
-        let ctx = Ctx::new(conn, String::new(), true, share)?;
-        match target {
-            "page" => {
-                let id = resolve_page(&ctx, args)?;
-                let page = pages::get_page(conn, &id)?;
-                Ok(Target {
-                    kind: "page",
-                    id,
-                    title: page.meta.title.clone(),
-                    text: doc_to_text(&page.content),
-                })
-            }
-            "scene" | "node" => {
-                let (id, title) = resolve_scene_id(&ctx, args)?;
-                let node = manuscript::get_node(conn, &id)?;
-                Ok(Target {
-                    kind: "node",
-                    id,
-                    title,
-                    text: doc_to_text(&node.content),
-                })
-            }
-            other => Err(AppError::invalid(format!(
-                "target must be page or scene, not {other}."
-            ))),
-        }
-    })
-}
-
-/// Where a quote is in the text, as a range of the normalized text. `after` limits the
-/// search to matches that start and end no earlier than that range, for a closing anchor.
-fn locate(
-    target: &Target,
-    hay: &Normalized,
-    quote: &str,
-    what: &str,
-    after: Option<(usize, usize)>,
-) -> AppResult<(usize, usize)> {
-    check_size(what, quote)?;
-    let needle = needle_for(quote, &hay.text);
-    let title = &target.title;
-    if needle.is_empty() {
-        return Err(AppError::invalid(format!(
-            "{what} is empty. Copy a few words of the text."
-        )));
-    }
-    let found: Vec<usize> = find_all(&hay.text, &needle)
-        .into_iter()
-        .filter(|&at| after.is_none_or(|(start, end)| at >= start && at + needle.len() >= end))
-        .collect();
-    match found.len() {
-        0 => {
-            let place = if after.is_some() { " after the start" } else { "" };
-            let hint = closest_passage(&target.text, quote)
-                .map(|p| format!(" The closest passage is: \"{p}\"."))
-                .unwrap_or_default();
-            Err(AppError::new(
-                "QUOTE_NOT_FOUND",
-                format!(
-                    "{what} is not in \"{title}\"{place}.{hint} Read the current text with {} and copy it exactly.",
-                    target.read_with()
-                ),
-            ))
-        }
-        1 => Ok((found[0], found[0] + needle.len())),
-        n => Err(AppError::new(
-            "QUOTE_NOT_UNIQUE",
-            format!(
-                "{what} appears {n} times in \"{title}\". Quote more of the words around it so it is unique."
-            ),
-        )),
-    }
-}
-
-fn reason(args: &Value) -> Value {
-    json!(cut(optional(args, "reason"), 2000))
-}
-
-fn suggested(title: &str, proposal: &str) -> String {
-    format!(
-        "Suggested a change to \"{title}\" (suggestion {proposal}). Nothing has changed yet: the writer reviews it in LoreCraft under Outside suggestions."
-    )
-}
-
-fn store(engine: &Engine, client: &str, target: Target, kind: &'static str, payload: Value) -> AppResult<String> {
-    let proposal = insert(
-        engine,
-        client,
-        Row {
-            kind,
-            target_kind: Some(target.kind.to_string()),
-            target_id: Some(target.id),
-            title: target.title.clone(),
-            payload,
-        },
-    )?;
-    Ok(suggested(&target.title, &proposal))
-}
-
-fn wants_whole(args: &Value) -> bool {
-    match args.get("whole") {
-        Some(Value::Bool(b)) => *b,
-        Some(Value::String(s)) => s.trim().eq_ignore_ascii_case("true"),
-        _ => false,
-    }
-}
-
-fn propose_edit(engine: &Engine, client: &str, args: &Value, share: bool) -> AppResult<String> {
-    if args.get("quote").is_none() && (args.get("from_quote").is_some() || wants_whole(args)) {
-        return propose_rewrite(engine, client, args, share);
-    }
-    let quote = required(args, "quote")?;
-    let replacement = required(args, "replacement")?;
-    check_size("The quote", quote)?;
-    check_size("The replacement", replacement)?;
-    if normalize_quote(quote).is_empty() {
-        return Err(AppError::invalid("The quote is empty. Copy the text to replace."));
-    }
-    if normalize_quote(quote) == normalize_quote(replacement) {
-        return Err(AppError::invalid("The replacement is the same as the quote."));
-    }
-    required(args, "target")?;
-    let target = load_target(engine, args, share, "")?;
-    let hay = normalize_with_map(&target.text);
-    locate(&target, &hay, quote, "That quote", None)?;
-    let payload = json!({ "quote": quote, "replacement": replacement, "reason": reason(args) });
-    store(engine, client, target, "edit", payload)
-}
-
-/// Rewrites a stretch given by its first and last words, or the whole scene.
-fn propose_rewrite(engine: &Engine, client: &str, args: &Value, share: bool) -> AppResult<String> {
-    let replacement = args
-        .get("replacement")
-        .or_else(|| args.get("text"))
-        .and_then(Value::as_str)
-        .ok_or_else(|| AppError::invalid("replacement is required."))?;
-    check_size("The replacement", replacement)?;
-    let target = load_target(engine, args, share, "scene")?;
-    let payload = if wants_whole(args) {
-        if normalize_quote(replacement).is_empty() {
-            return Err(AppError::invalid(
-                "The replacement is empty. A whole rewrite needs the new text.",
-            ));
-        }
-        if normalize_quote(&target.text) == normalize_quote(replacement) {
-            return Err(AppError::invalid("The replacement is the same as the text."));
-        }
-        json!({ "mode": "whole", "replacement": replacement, "original": target.text, "reason": reason(args) })
-    } else {
-        let from_quote = required(args, "from_quote")?;
-        let to_quote = required(args, "to_quote")?;
-        let hay = normalize_with_map(&target.text);
-        let start = locate(&target, &hay, from_quote, "from_quote", None)?;
-        let end = locate(&target, &hay, to_quote, "to_quote", Some(start))?;
-        let (from, to) = hay.original(start.0, end.1);
-        let original = &target.text[from..to];
-        if normalize_quote(original) == normalize_quote(replacement) {
-            return Err(AppError::invalid("The replacement is the same as the text."));
-        }
-        json!({
-            "mode": "range",
-            "fromQuote": from_quote,
-            "toQuote": to_quote,
-            "replacement": replacement,
-            "original": original,
-            "reason": reason(args),
-        })
-    };
-    store(engine, client, target, "rewrite", payload)
-}
-
-/// Adds text at the start or end, or next to a quote. Works on an empty scene too.
-fn propose_insert(engine: &Engine, client: &str, args: &Value, share: bool) -> AppResult<String> {
-    let text = required(args, "text")?;
-    check_size("The text", text)?;
-    if normalize_quote(text).is_empty() {
-        return Err(AppError::invalid("The text is empty."));
-    }
-    let target = load_target(engine, args, share, "scene")?;
-    let after = optional(args, "after_quote");
-    let before = optional(args, "before_quote");
-    let at = optional(args, "at");
-    let (at, quote) = match (at, after.is_empty(), before.is_empty()) {
-        ("start" | "end", true, true) => (at, ""),
-        ("", false, true) => ("after", after),
-        ("", true, false) => ("before", before),
-        ("", true, true) => {
-            return Err(AppError::invalid(
-                "Say where: at start or end, or give after_quote or before_quote.",
-            ))
-        }
-        _ => {
-            return Err(AppError::invalid(
-                "Give only one of at (start or end), after_quote or before_quote.",
-            ))
-        }
-    };
-    if !quote.is_empty() {
-        let hay = normalize_with_map(&target.text);
-        let name = if at == "after" { "after_quote" } else { "before_quote" };
-        locate(&target, &hay, quote, name, None)?;
-    }
-    let payload = json!({ "at": at, "quote": quote, "text": text, "reason": reason(args) });
-    store(engine, client, target, "insert", payload)
-}
-
 // ---------------------------------------------------------------------------
-// New scenes and chapters, and a scene's details
+// Helpers for write tools: books, parts, chapters, scenes and pages by name
 // ---------------------------------------------------------------------------
 
-fn resolve_book(ctx: &Ctx, wanted: &str) -> AppResult<(String, String)> {
+pub fn resolve_book(ctx: &Ctx, wanted: &str) -> AppResult<(String, String)> {
     let mut stmt = ctx
         .conn
         .prepare("SELECT id, title FROM books WHERE deleted_at IS NULL ORDER BY position, created_at")?;
@@ -436,13 +274,13 @@ fn resolve_book(ctx: &Ctx, wanted: &str) -> AppResult<(String, String)> {
 }
 
 /// A part, chapter or scene by id, or else by title.
-fn node_ref(ctx: &Ctx, value: &str, kinds: &[&str]) -> AppResult<manuscript::Node> {
+pub fn node_ref(ctx: &Ctx, value: &str, kinds: &[&str]) -> AppResult<manuscript::Node> {
     resolve_node(ctx, &json!({ "id": value }), kinds)
         .or_else(|_| resolve_node(ctx, &json!({ "title": value }), kinds))
 }
 
 /// The book's parts, chapters and scenes in reading order, leaving out what is hidden.
-fn reading_order(ctx: &Ctx, book_id: &str) -> AppResult<Vec<manuscript::NodeMeta>> {
+pub fn reading_order(ctx: &Ctx, book_id: &str) -> AppResult<Vec<manuscript::NodeMeta>> {
     let all = manuscript::tree(ctx.conn, book_id)?;
     fn walk(all: &[manuscript::NodeMeta], parent: Option<&str>, out: &mut Vec<manuscript::NodeMeta>) {
         for node in all.iter().filter(|n| n.parent_id.as_deref() == parent) {
@@ -457,7 +295,7 @@ fn reading_order(ctx: &Ctx, book_id: &str) -> AppResult<Vec<manuscript::NodeMeta
 }
 
 /// A page named by title or alias, or by id, as `{ id, title }`.
-fn page_ref(ctx: &Ctx, value: &str) -> AppResult<Value> {
+pub fn page_ref(ctx: &Ctx, value: &str) -> AppResult<Value> {
     let id = resolve_page(ctx, &json!({ "title": value }))
         .or_else(|_| resolve_page(ctx, &json!({ "id": value })))?;
     let title: String = ctx
@@ -467,7 +305,7 @@ fn page_ref(ctx: &Ctx, value: &str) -> AppResult<Value> {
 }
 
 /// POV, location and cast for a new scene. Absent fields are left out.
-fn scene_people(ctx: &Ctx, args: &Value, payload: &mut Map<String, Value>) -> AppResult<()> {
+pub fn scene_people(ctx: &Ctx, args: &Value, payload: &mut Map<String, Value>) -> AppResult<()> {
     for (arg, key) in [("pov", "pov"), ("location", "location")] {
         let value = optional(args, arg);
         if !value.is_empty() {
@@ -482,7 +320,7 @@ fn scene_people(ctx: &Ctx, args: &Value, payload: &mut Map<String, Value>) -> Ap
     Ok(())
 }
 
-fn label(args: &Value, name: &str, what: &str) -> AppResult<String> {
+pub fn label(args: &Value, name: &str, what: &str) -> AppResult<String> {
     let value = optional(args, name).split_whitespace().collect::<Vec<_>>().join(" ");
     if value.is_empty() {
         return Err(AppError::invalid(format!("{what} needs a title.")));
@@ -493,368 +331,28 @@ fn label(args: &Value, name: &str, what: &str) -> AppResult<String> {
     Ok(value)
 }
 
-fn propose_new_scene(engine: &Engine, client: &str, args: &Value, share: bool) -> AppResult<String> {
-    let title = label(args, "title", "The scene")?;
-    let text = optional(args, "text");
-    check_size("The text", text)?;
-    let (payload, chapter_id, chapter_title) = engine.read(|conn| {
-        let ctx = Ctx::new(conn, String::new(), true, share)?;
-        let after = optional(args, "after");
-        let chapter_arg = optional(args, "chapter");
-        let (chapter, after) = if !after.is_empty() {
-            let scene = node_ref(&ctx, after, &["scene"])?;
-            let parent = scene.meta.parent_id.clone().unwrap_or_default();
-            (node_ref(&ctx, &parent, &["chapter"])?, Some(scene))
-        } else if !chapter_arg.is_empty() {
-            (node_ref(&ctx, chapter_arg, &["chapter"])?, None)
-        } else {
-            let (book_id, book_title) = resolve_book(&ctx, optional(args, "book"))?;
-            let last = reading_order(&ctx, &book_id)?
-                .into_iter()
-                .filter(|n| n.kind == "chapter")
-                .last()
-                .ok_or_else(|| {
-                    AppError::not_found(format!(
-                        "A chapter in \"{book_title}\" to add the scene to. Use propose_new_chapter first"
-                    ))
-                })?;
-            (manuscript::get_node(conn, &last.id)?, None)
-        };
-        let book_title: String = conn.query_row(
-            "SELECT title FROM books WHERE id = ?1",
-            [&chapter.meta.book_id],
-            |r| r.get(0),
-        )?;
-        let mut payload = Map::new();
-        payload.insert("bookId".into(), json!(chapter.meta.book_id));
-        payload.insert("bookTitle".into(), json!(book_title));
-        payload.insert("chapterId".into(), json!(chapter.meta.id));
-        payload.insert("chapterTitle".into(), json!(chapter.meta.title));
-        if let Some(after) = &after {
-            payload.insert("afterId".into(), json!(after.meta.id));
-            payload.insert("afterTitle".into(), json!(after.meta.title));
-        }
-        payload.insert("title".into(), json!(title));
-        payload.insert("synopsis".into(), json!(cut(optional(args, "synopsis"), 4000)));
-        scene_people(&ctx, args, &mut payload)?;
-        payload.insert("text".into(), json!(text));
-        payload.insert("reason".into(), reason(args));
-        Ok((payload, chapter.meta.id.clone(), chapter.meta.title.clone()))
-    })?;
-    let proposal = insert(
-        engine,
-        client,
-        Row {
-            kind: "newScene",
-            target_kind: Some("node".into()),
-            target_id: Some(chapter_id),
-            title: title.clone(),
-            payload: Value::Object(payload),
-        },
-    )?;
-    Ok(format!(
-        "Suggested a new scene \"{title}\" in \"{chapter_title}\" (suggestion {proposal}). It does not exist yet: the writer reviews it in LoreCraft under Outside suggestions."
-    ))
+/// Runs a write tool at the suggest level, as before the edit level existed.
+pub fn call(engine: &Engine, client: &str, name: &str, args: &Value, share: bool) -> AppResult<String> {
+    call_as(engine, client, name, args, share, PERMISSION_SUGGEST, write::Waits::default())
 }
 
-fn propose_new_chapter(engine: &Engine, client: &str, args: &Value, share: bool) -> AppResult<String> {
-    let title = label(args, "title", "The chapter")?;
-    let text = optional(args, "text");
-    check_size("The text", text)?;
-    let scene_title = match optional(args, "scene_title") {
-        "" => title.clone(),
-        _ => label(args, "scene_title", "The scene")?,
-    };
-    let (payload, book_id) = engine.read(|conn| {
-        let ctx = Ctx::new(conn, String::new(), true, share)?;
-        let after = optional(args, "after");
-        let mut payload = Map::new();
-        let book_id = if !after.is_empty() {
-            let chapter = node_ref(&ctx, after, &["chapter"])?;
-            payload.insert("parentId".into(), json!(chapter.meta.parent_id));
-            payload.insert("afterId".into(), json!(chapter.meta.id));
-            payload.insert("afterTitle".into(), json!(chapter.meta.title));
-            chapter.meta.book_id
-        } else {
-            let (book_id, _) = resolve_book(&ctx, optional(args, "book"))?;
-            // A book in parts gains the chapter at the end of its last part.
-            let top = reading_order(&ctx, &book_id)?
-                .into_iter()
-                .filter(|n| n.parent_id.is_none())
-                .last();
-            let part = top.filter(|n| n.kind == "part").map(|n| n.id);
-            payload.insert("parentId".into(), json!(part));
-            book_id
-        };
-        let book_title: String =
-            conn.query_row("SELECT title FROM books WHERE id = ?1", [&book_id], |r| r.get(0))?;
-        payload.insert("bookId".into(), json!(book_id));
-        payload.insert("bookTitle".into(), json!(book_title));
-        payload.insert("title".into(), json!(title));
-        payload.insert("synopsis".into(), json!(cut(optional(args, "synopsis"), 4000)));
-        let mut scene = Map::new();
-        scene.insert("title".into(), json!(scene_title));
-        scene.insert("synopsis".into(), json!(cut(optional(args, "scene_synopsis"), 4000)));
-        scene_people(&ctx, args, &mut scene)?;
-        scene.insert("text".into(), json!(text));
-        payload.insert("scene".into(), Value::Object(scene));
-        payload.insert("reason".into(), reason(args));
-        Ok((payload, book_id))
-    })?;
-    let proposal = insert(
-        engine,
-        client,
-        Row {
-            kind: "newChapter",
-            target_kind: Some("book".into()),
-            target_id: Some(book_id),
-            title: title.clone(),
-            payload: Value::Object(payload),
-        },
-    )?;
-    Ok(format!(
-        "Suggested a new chapter \"{title}\" (suggestion {proposal}). It does not exist yet: the writer reviews it in LoreCraft under Outside suggestions."
-    ))
-}
-
-fn propose_scene_details(engine: &Engine, client: &str, args: &Value, share: bool) -> AppResult<String> {
-    let (id, title, payload) = engine.read(|conn| {
-        let ctx = Ctx::new(conn, String::new(), true, share)?;
-        let (id, title) = resolve_scene_id(&ctx, args)?;
-        let node = manuscript::get_node(conn, &id)?;
-        let page_title = |id: Option<&str>| -> AppResult<Value> {
-            Ok(match id {
-                Some(id) if !id.is_empty() => {
-                    let title: Option<String> = conn
-                        .query_row("SELECT title FROM pages WHERE id = ?1", [id], |r| r.get(0))
-                        .optional()?;
-                    json!({ "id": id, "title": title.unwrap_or_default() })
-                }
-                _ => Value::Null,
-            })
-        };
-        let location: Option<String> = conn.query_row(
-            "SELECT location_page_id FROM nodes WHERE id = ?1",
-            [&id],
-            |r| r.get(0),
-        )?;
-        let cast_ids = manuscript::cast_of(conn, &id)?;
-        let cast_before = cast_ids
-            .iter()
-            .map(|c| page_title(Some(c)))
-            .collect::<AppResult<Vec<_>>>()?;
-        let before = json!({
-            "title": node.meta.title,
-            "synopsis": node.meta.synopsis,
-            "status": node.meta.status,
-            "storyDate": node.meta.story_date,
-            "notes": node.notes,
-            "pov": page_title(node.meta.pov_page_id.as_deref())?,
-            "location": page_title(location.as_deref())?,
-            "cast": cast_before,
-        });
-        let mut changes = Map::new();
-        let mut text_field = |arg: &str, key: &str, limit: usize| -> AppResult<()> {
-            if let Some(value) = args.get(arg).and_then(Value::as_str) {
-                check_size(arg, value)?;
-                let value = cut(value.trim(), limit);
-                if before[key].as_str() != Some(value) {
-                    changes.insert(key.into(), json!(value));
-                }
-            }
-            Ok(())
-        };
-        text_field("synopsis", "synopsis", 4000)?;
-        text_field("story_date", "storyDate", MAX_LABEL)?;
-        text_field("notes", "notes", MAX_TEXT)?;
-        if args.get("new_title").and_then(Value::as_str).is_some() {
-            let new_title = label(args, "new_title", "The scene")?;
-            if new_title != node.meta.title {
-                changes.insert("title".into(), json!(new_title));
-            }
-        }
-        if let Some(status) = args.get("status").and_then(Value::as_str).map(str::trim) {
-            if !manuscript::NODE_STATUSES.contains(&status) {
-                return Err(AppError::invalid(format!(
-                    "status must be one of {}.",
-                    manuscript::NODE_STATUSES.join(", ")
-                )));
-            }
-            if status != node.meta.status {
-                changes.insert("status".into(), json!(status));
-            }
-        }
-        for key in ["pov", "location"] {
-            if let Some(value) = args.get(key).and_then(Value::as_str).map(str::trim) {
-                let chosen = if value.is_empty() { Value::Null } else { page_ref(&ctx, value)? };
-                if chosen.get("id") != before[key].get("id") {
-                    changes.insert(key.into(), chosen);
-                }
-            }
-        }
-        if args.get("cast").is_some() {
-            let mut cast = string_list(args, "cast")
-                .iter()
-                .map(|name| page_ref(&ctx, name))
-                .collect::<AppResult<Vec<_>>>()?;
-            // Pages this client cannot see stay in the cast it never saw them in.
-            for (index, page) in cast_ids.iter().enumerate() {
-                if ctx.page_hidden(page) {
-                    cast.push(cast_before[index].clone());
-                }
-            }
-            let ids = |list: &[Value]| {
-                let mut ids: Vec<String> =
-                    list.iter().filter_map(|p| p["id"].as_str().map(String::from)).collect();
-                ids.sort();
-                ids.dedup();
-                ids
-            };
-            if ids(&cast) != ids(&cast_before) {
-                changes.insert("cast".into(), Value::Array(cast));
-            }
-        }
-        if changes.is_empty() {
-            return Err(AppError::invalid(
-                "Nothing would change. Give at least one detail that differs from the scene's now.",
-            ));
-        }
-        Ok((
-            id,
-            title,
-            json!({ "changes": changes, "before": before, "reason": reason(args) }),
-        ))
-    })?;
-    store(
-        engine,
-        client,
-        Target { kind: "node", id, title, text: String::new() },
-        "sceneDetails",
-        payload,
-    )
-}
-
-/// Accepts an object of label to text, or an array of `{ label, value }`.
-fn infobox_fields(args: &Value) -> Vec<Value> {
-    let clean = |label: &str, value: &str| -> Option<Value> {
-        let label = cut(label.trim(), MAX_LABEL);
-        let value = cut(value.trim(), 4000);
-        (!label.is_empty() && !value.is_empty()).then(|| json!({ "label": label, "value": value }))
-    };
-    match args.get("infobox") {
-        Some(Value::Object(map)) => map
-            .iter()
-            .filter_map(|(label, value)| clean(label, value.as_str()?))
-            .collect(),
-        Some(Value::Array(items)) => items
-            .iter()
-            .filter_map(|item| {
-                clean(item.get("label")?.as_str()?, item.get("value")?.as_str()?)
-            })
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-fn propose_new_page(engine: &Engine, client: &str, args: &Value) -> AppResult<String> {
-    let title = required(args, "title")?.split_whitespace().collect::<Vec<_>>().join(" ");
-    if title_key(&title).is_empty() {
-        return Err(AppError::invalid("The page needs a title."));
-    }
-    if title.len() > MAX_LABEL {
-        return Err(AppError::invalid("That title is too long."));
-    }
-    let body = required(args, "body")?;
-    check_size("The body", body)?;
-    let existing = engine.read(|conn| pages::resolve_title(conn, &title))?;
-    if existing.is_some() {
-        // A hidden page gets the same answer, since the title cannot be used either way.
-        return Err(AppError::new(
-            "TITLE_TAKEN",
-            format!(
-                "A page called \"{title}\" already exists, or that name is an alias of one. Use propose_edit to change it, or choose another title."
-            ),
-        ));
-    }
-    let page_type = cut(optional(args, "type"), MAX_LABEL);
-    let mut payload = Map::new();
-    payload.insert("title".into(), json!(title));
-    payload.insert(
-        "pageType".into(),
-        json!(if page_type.is_empty() { "article" } else { page_type }),
-    );
-    payload.insert("body".into(), json!(body));
-    payload.insert("summary".into(), json!(cut(optional(args, "summary"), 2000)));
-    payload.insert("infobox".into(), Value::Array(infobox_fields(args)));
-    payload.insert("aliases".into(), json!(string_list(args, "aliases")));
-    payload.insert("categories".into(), json!(string_list(args, "categories")));
-    payload.insert("reason".into(), json!(cut(optional(args, "reason"), 2000)));
-    let proposal = insert(
-        engine,
-        client,
-        Row {
-            kind: "newPage",
-            target_kind: None,
-            target_id: None,
-            title: title.clone(),
-            payload: Value::Object(payload),
-        },
-    )?;
-    Ok(format!(
-        "Suggested a new page \"{title}\" (suggestion {proposal}). It does not exist yet: the writer reviews it in LoreCraft under Outside suggestions, and it starts as a draft."
-    ))
-}
-
-/// An idea goes straight to the inbox, which is the writer's own list to review. It names
-/// the tool it came from, so the writer knows it was not theirs. Since nobody approves it
-/// first, a tool can add only short ones, and only so many while they wait.
-fn add_idea(engine: &Engine, client: &str, args: &Value) -> AppResult<String> {
-    let text = required(args, "text")?.trim();
-    if text.is_empty() {
-        return Err(AppError::invalid("The idea is empty."));
-    }
-    if text.chars().count() > MAX_IDEA_CHARS {
-        return Err(AppError::invalid(
-            "That is too long for an idea. Keep it to a short note, or suggest a page with propose_new_page.",
-        ));
-    }
-    let waiting: i64 = engine.read(|conn| {
-        Ok(conn.query_row(
-            "SELECT COUNT(*) FROM ideas WHERE status = 'open' AND text LIKE '%' || char(10) || '(From %)'",
-            [],
-            |r| r.get(0),
-        )?)
-    })?;
-    if waiting >= MAX_PENDING {
-        return Err(AppError::new(
-            "TOO_MANY",
-            "Too many ideas from outside tools are waiting in the writer's inbox. Ask them to go through those first.",
-        ));
-    }
-    crate::rpc::ideas::handle(
-        engine,
-        "add",
-        json!({ "text": format!("{text}\n\n(From {})", cut(client, MAX_LABEL)) }),
-    )?;
-    Ok("Added to the writer's idea inbox.".to_string())
-}
-
-pub fn call(
+/// Runs a write tool: checks the hard limits, lets its handler build a draft, and submits it.
+pub fn call_as(
     engine: &Engine,
     client: &str,
     name: &str,
     args: &Value,
     share: bool,
+    permission: &str,
+    waits: write::Waits,
 ) -> AppResult<String> {
-    match name {
-        "propose_edit" => propose_edit(engine, client, args, share),
-        "propose_rewrite" => propose_rewrite(engine, client, args, share),
-        "propose_insert" => propose_insert(engine, client, args, share),
-        "propose_new_scene" => propose_new_scene(engine, client, args, share),
-        "propose_new_chapter" => propose_new_chapter(engine, client, args, share),
-        "propose_scene_details" => propose_scene_details(engine, client, args, share),
-        "propose_new_page" => propose_new_page(engine, client, args),
-        "add_idea" => add_idea(engine, client, args),
+    limits::check_args(args)?;
+    match areas::find(name).map(|t| t.handler) {
+        Some(Handler::Write(build)) => {
+            let draft = build(&WriteCx::new(engine, client, share), args)?;
+            write::submit(engine, client, draft, permission, waits)
+        }
+        Some(Handler::Direct(run)) => run(engine, client, args),
         _ => Err(AppError::invalid(format!("There is no tool named {name}."))),
     }
 }
@@ -862,8 +360,195 @@ pub fn call(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mcp::areas::lore_edits::MAX_IDEA_CHARS;
+    use crate::mcp::config::{PERMISSION_EDIT, PERMISSION_READ};
+    use crate::mcp::write::Waits;
     use crate::rpc::call as rpc;
     use std::sync::Arc;
+    use std::time::Duration;
+
+    fn quick() -> Waits {
+        Waits {
+            claim: Duration::from_millis(600),
+            apply: Duration::from_millis(1500),
+            poll: Duration::from_millis(20),
+        }
+    }
+
+    /// Plays the app's window: picks up each change and marks it applied, or failed.
+    fn window(engine: &Arc<Engine>, fail: Option<&'static str>) -> std::thread::JoinHandle<()> {
+        let engine = engine.clone();
+        std::thread::spawn(move || {
+            for _ in 0..100 {
+                std::thread::sleep(Duration::from_millis(15));
+                let waiting = engine.read(|c| list(c, STATUS_AUTO)).unwrap();
+                if let Some(row) = waiting.first() {
+                    let id = row["id"].as_str().unwrap().to_string();
+                    assert!(engine.write(|tx| resolve(tx, &id, STATUS_APPLYING)).unwrap());
+                    let mut extra = Map::new();
+                    let status = match fail {
+                        Some(reason) => {
+                            extra.insert("error".into(), json!(reason));
+                            STATUS_FAILED
+                        }
+                        None => {
+                            extra.insert("undo".into(), json!({ "revision": "r1" }));
+                            STATUS_APPLIED
+                        }
+                    };
+                    assert!(engine.write(|tx| resolve_with(tx, &id, status, &extra)).unwrap());
+                    return;
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn at_the_edit_level_a_change_waits_for_the_window_and_says_done() {
+        let (engine, _dir, _id) = project();
+        let helper = window(&engine, None);
+        let args = json!({ "target": "page", "title": "Aria", "quote": "She said \"no\" twice.", "replacement": "She refused." });
+        let said = call_as(&engine, "c", "propose_edit", &args, false, PERMISSION_EDIT, quick()).unwrap();
+        helper.join().unwrap();
+        assert!(said.starts_with("Done: "), "{said}");
+        // A change already made never counts on the badge, and shows with its undo.
+        assert_eq!(engine.read(pending_count).unwrap(), 0);
+        let applied = engine.read(|c| list(c, STATUS_APPLIED)).unwrap();
+        assert_eq!(applied.len(), 1);
+        assert_eq!(applied[0]["payload"]["undo"]["revision"], "r1");
+        let id = applied[0]["id"].as_str().unwrap();
+        assert!(engine.write(|tx| resolve(tx, id, STATUS_UNDONE)).unwrap());
+        assert!(!engine.write(|tx| resolve(tx, id, STATUS_UNDONE)).unwrap(), "undone only once");
+    }
+
+    #[test]
+    fn at_the_edit_level_a_failure_comes_back_as_the_real_error() {
+        let (engine, _dir, _id) = project();
+        let helper = window(&engine, Some("The quoted text is no longer there."));
+        let args = json!({ "target": "page", "title": "Aria", "quote": "She said", "replacement": "New" });
+        let err = call_as(&engine, "c", "propose_edit", &args, false, PERMISSION_EDIT, quick()).unwrap_err();
+        helper.join().unwrap();
+        assert_eq!(err.code, "NOT_APPLIED");
+        assert!(err.message.contains("no longer there"), "{}", err.message);
+        assert_eq!(engine.read(pending_count).unwrap(), 0);
+    }
+
+    #[test]
+    fn with_no_window_the_change_waits_as_a_normal_suggestion() {
+        let (engine, _dir, _id) = project();
+        let args = json!({ "target": "page", "title": "Aria", "quote": "She said", "replacement": "New" });
+        let said = call_as(&engine, "c", "propose_edit", &args, false, PERMISSION_EDIT, quick()).unwrap();
+        assert!(said.contains("did not respond"), "{said}");
+        assert_eq!(engine.read(pending_count).unwrap(), 1);
+        // A window that wakes up late finds nothing to pick up.
+        let id = engine.read(|c| list(c, STATUS_PENDING)).unwrap()[0]["id"].as_str().unwrap().to_string();
+        assert!(!engine.write(|tx| resolve(tx, &id, STATUS_APPLYING)).unwrap());
+    }
+
+    #[test]
+    fn the_suggest_level_still_only_queues() {
+        let (engine, _dir, _id) = project();
+        let args = json!({ "target": "page", "title": "Aria", "quote": "She said", "replacement": "New" });
+        let said = call_as(&engine, "c", "propose_edit", &args, false, "suggest", quick()).unwrap();
+        assert!(said.contains("Nothing has changed yet"), "{said}");
+        assert!(engine.read(|c| list(c, STATUS_AUTO)).unwrap().is_empty());
+        assert_eq!(engine.read(pending_count).unwrap(), 1);
+    }
+
+    #[test]
+    fn statuses_only_move_forward() {
+        let (engine, _dir, _id) = project();
+        call(&engine, "c", "propose_new_page", &json!({ "title": "Gate", "body": "x" }), false).unwrap();
+        let id = engine.read(|c| list(c, STATUS_PENDING)).unwrap()[0]["id"].as_str().unwrap().to_string();
+        // A suggestion waiting for the writer cannot be applied, failed or undone behind them.
+        for status in [STATUS_APPLYING, STATUS_APPLIED, STATUS_FAILED, STATUS_UNDONE] {
+            assert!(!engine.write(|tx| resolve(tx, &id, status)).unwrap(), "{status}");
+        }
+        assert!(engine.write(|tx| resolve(tx, &id, "bogus")).is_err());
+        assert!(engine.write(|tx| resolve(tx, &id, "accepted")).unwrap());
+    }
+
+    #[test]
+    fn the_cap_counts_changes_waiting_for_the_window() {
+        let (engine, _dir, _id) = project();
+        engine
+            .write(|tx| {
+                tx.execute_batch(TABLE)?;
+                for n in 0..MAX_PENDING {
+                    tx.execute(
+                        "INSERT INTO proposals (id, client, kind, title, payload, status, created_at) VALUES (?1, 'c', 'edit', '', '{}', ?2, 'now')",
+                        params![db::new_id(), if n % 2 == 0 { STATUS_AUTO } else { STATUS_PENDING }],
+                    )?;
+                }
+                Ok(())
+            })
+            .unwrap();
+        let refused = call(&engine, "c", "propose_new_page", &json!({ "title": "Gate", "body": "x" }), false).unwrap_err();
+        assert_eq!(refused.code, "TOO_MANY");
+    }
+
+    #[test]
+    fn hard_limits_hold_for_every_write_tool() {
+        let (engine, _dir, _id) = project();
+        for tool in areas::all().iter().filter(|t| t.writes()) {
+            for key in ["local_only", "permission", "api_key", "provider"] {
+                let refused = call_as(&engine, "c", tool.name, &json!({ key: true, "title": "x" }), true, PERMISSION_EDIT, quick()).unwrap_err();
+                assert_eq!(refused.code, "NOT_ALLOWED", "{} {key}", tool.name);
+            }
+        }
+        // No tool is named for settings, providers, keys, limits, or deleting the project.
+        for tool in areas::all() {
+            for word in ["permission", "setting_", "provider", "api_key", "spending", "local_only", "delete_project"] {
+                assert!(!tool.name.contains(word) || tool.name == "get_settings_overview", "{}", tool.name);
+            }
+        }
+        assert_eq!(engine.read(pending_count).unwrap(), 0);
+    }
+
+    #[test]
+    fn set_style_guide_replaces_or_appends_and_keeps_the_old_text() {
+        let (engine, _dir, _id) = project();
+        rpc(
+            &engine,
+            "project.setMeta",
+            json!({ "key": "writingStyles.guide", "value": "{\"project\":{\"tense\":\"Past tense\",\"voice\":\"Wry.\"}}" }),
+        );
+        call(&engine, "c", "set_style_guide", &json!({ "text": "Short sentences.", "mode": "append", "tense": "Present tense" }), false).unwrap();
+        let p = last(&engine);
+        assert_eq!(p["kind"], "styleGuide");
+        assert_eq!(p["targetKind"], "meta");
+        assert_eq!(p["payload"]["changes"]["voice"], "Wry.\nShort sentences.");
+        assert_eq!(p["payload"]["changes"]["tense"], "Present tense");
+        assert_eq!(p["payload"]["before"]["voice"], "Wry.");
+        assert_eq!(p["payload"]["before"]["tense"], "Past tense");
+        call(&engine, "c", "set_style_guide", &json!({ "voice": "Plain." }), false).unwrap();
+        assert_eq!(last(&engine)["payload"]["changes"]["voice"], "Plain.");
+        let same = call(&engine, "c", "set_style_guide", &json!({ "tense": "Past tense" }), false).unwrap_err();
+        assert_eq!(same.code, "INVALID");
+        assert_eq!(call(&engine, "c", "set_style_guide", &json!({}), false).unwrap_err().code, "INVALID");
+        assert_eq!(call(&engine, "c", "set_style_guide", &json!({ "text": "x", "mode": "merge" }), false).unwrap_err().code, "INVALID");
+    }
+
+    #[test]
+    fn the_settings_overview_says_what_is_allowed() {
+        let (engine, _dir, _id) = project();
+        rpc(&engine, "project.setMeta", json!({ "key": "language", "value": "fr" }));
+        let overview = |permission: &str, share: bool| {
+            engine
+                .read(|conn| {
+                    let mut ctx = Ctx::new(conn, "Ashfall".into(), true, share)?;
+                    ctx.permission = Some(permission.to_string());
+                    crate::mcp::tools::call(&ctx, "get_settings_overview", &json!({}))
+                })
+                .unwrap()
+        };
+        let text = overview(PERMISSION_EDIT, false);
+        assert!(text.contains("Make changes directly"), "{text}");
+        assert!(text.contains("Hidden."), "{text}");
+        assert!(text.contains("Project language: fr"), "{text}");
+        assert!(overview(PERMISSION_READ, true).contains("Read only"));
+        assert!(overview("suggest", true).contains("Shared."));
+    }
 
     fn project() -> (Arc<Engine>, crate::engine::TestDir, String) {
         let (engine, _host, dir) = Engine::for_test();

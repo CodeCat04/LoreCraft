@@ -16,7 +16,14 @@ export interface McpActivity {
   ok: boolean;
 }
 
-export type McpPermission = 'read' | 'suggest';
+/** read: only reading. suggest: changes wait for the writer. edit: changes are made at once, and can be undone. */
+export type McpPermission = 'read' | 'suggest' | 'edit';
+
+/**
+ * pending waits for the writer; auto waits for this window to apply it (edit level), which
+ * marks it applying, then applied or failed; applied can become undone.
+ */
+export type ProposalStatus = 'pending' | 'accepted' | 'rejected' | 'auto' | 'applying' | 'applied' | 'failed' | 'undone';
 
 export interface McpStatus {
   enabled: boolean;
@@ -58,6 +65,15 @@ interface ProposalBase {
   title: string;
   status: string;
   createdAt: string;
+}
+
+/** Any suggestion, of any kind, as the server lists it. A kind in `kinds/` reads its own payload. */
+export interface AnyProposal<P = object> extends ProposalBase {
+  kind: string;
+  targetKind: string | null;
+  targetId: string | null;
+  /** What the kind needs, plus `reason`, and once applied, `undo`; once failed, `error`. */
+  payload: P & { reason?: string; undo?: unknown; error?: string };
 }
 
 /** A stretch from `fromQuote` to `toQuote`, or the whole document, rewritten. */
@@ -151,9 +167,15 @@ export const mcp = {
   update: (patch: { enabled?: boolean; permission?: McpPermission; shareLocalOnly?: boolean }) =>
     rpc<McpStatus>('mcp.update', patch),
   rotateToken: () => rpc<McpStatus>('mcp.rotateToken'),
-  proposals: () => rpc<Proposal[]>('mcp.proposals'),
+  proposals: (status: ProposalStatus = 'pending') => rpc<AnyProposal[]>('mcp.proposals', { status }),
   proposalCount: () => rpc<number>('mcp.proposalCount'),
-  /** `target` names a document that was just replaced, so an open editor reloads it. */
-  resolve: (id: string, status: 'accepted' | 'rejected', target?: { targetKind: string; targetId: string }) =>
-    rpc<{ changed: boolean }>('mcp.proposalResolve', { id, status, ...target }),
+  /**
+   * Moves a suggestion on. `targetKind` and `targetId` name a document that was just replaced,
+   * so an open editor reloads it; `undo` is kept with an applied change; `error` says why it failed.
+   */
+  resolve: (
+    id: string,
+    status: 'accepted' | 'rejected' | 'applying' | 'applied' | 'failed' | 'undone',
+    extra?: { targetKind?: string; targetId?: string; undo?: unknown; error?: string },
+  ) => rpc<{ changed: boolean }>('mcp.proposalResolve', { id, status, ...extra }),
 };

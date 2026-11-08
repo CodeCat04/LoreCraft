@@ -127,7 +127,7 @@ export function McpSettings() {
   return (
     <section className="mcp-settings">
       <p className="muted mcp-intro">
-        {t('Let AI tools outside LoreCraft, such as Claude Code or OpenCode with a local model, read your lore and your book. They can only suggest changes, and you accept or reject each one. It works only from this computer.')}
+        {t('Let AI tools outside LoreCraft, such as Claude Code or OpenCode with a local model, read your lore and your book. You choose below whether they can only read, suggest changes for you to accept, or make changes directly. It works only from this computer.')}
       </p>
       <label className="checkbox">
         <input type="checkbox" checked={status.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
@@ -150,8 +150,16 @@ export function McpSettings() {
           onChange={(e) => set({ permission: e.target.value as McpPermission })}
         >
           <option value="suggest">{t('Read and suggest changes')}</option>
+          <option value="edit">{t('Make changes directly')}</option>
           <option value="read">{t('Read only')}</option>
         </select>
+        <span className="field-hint" data-testid="mcp-permission-hint">
+          {status.permission === 'edit'
+            ? t('Changes are made at once, without asking you first. Each one is saved in History and listed under Outside suggestions, where you can undo it. Tools still cannot change these settings, your AI providers or keys, or what is local only.')
+            : status.permission === 'read'
+              ? t('Tools can read, but cannot suggest or make any change.')
+              : t('Each change waits under Outside suggestions until you accept or reject it.')}
+        </span>
       </label>
 
       <label className="checkbox">

@@ -50,13 +50,26 @@ pub fn handle(engine: &Engine, action: &str, params: Value) -> AppResult<Value> 
             #[serde(rename_all = "camelCase")]
             struct P {
                 id: String,
+                /// accepted or rejected from pending; applying from auto (the window picks it
+                /// up); applied or failed from applying; undone from applied.
                 status: String,
                 /// The document an accepted edit replaced, so an open editor reloads it.
                 target_kind: Option<String>,
                 target_id: Option<String>,
+                /// What Undo needs, kept with an applied change.
+                undo: Option<Value>,
+                /// Why it could not be applied, for the waiting tool call.
+                error: Option<String>,
             }
             let p: P = parse(params)?;
-            let changed = engine.write(|tx| suggest::resolve(tx, &p.id, &p.status))?;
+            let mut extra = serde_json::Map::new();
+            if let Some(undo) = p.undo {
+                extra.insert("undo".into(), undo);
+            }
+            if let Some(error) = p.error {
+                extra.insert("error".into(), Value::String(error));
+            }
+            let changed = engine.write(|tx| suggest::resolve_with(tx, &p.id, &p.status, &extra))?;
             if let (Some(kind), Some(id)) = (p.target_kind, p.target_id) {
                 pages::notify_replaced(engine, &[(kind, id)]);
             }
@@ -94,6 +107,8 @@ mod tests {
         assert_eq!(off["running"], false);
         assert!(crate::mcp::config::read_discovery(&engine.paths).is_none());
         assert!(crate::rpc::dispatch(&engine, "mcp.update", json!({ "permission": "everything" })).is_err());
+        let edit = call(&engine, "mcp.update", json!({ "permission": "edit" }));
+        assert_eq!(edit["permission"], "edit");
     }
 
     #[test]
