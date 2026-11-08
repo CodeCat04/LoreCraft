@@ -61,7 +61,7 @@ import { undoProposal } from './actions';
 import type { AnyProposal } from './api';
 import { useProject } from '../state/project';
 
-function edit(): AnyProposal {
+function edit(): AnyProposal<Record<string, unknown>> {
   return {
     id: 'x1',
     client: 'Claude Code',
@@ -154,7 +154,7 @@ describe('the edit level', () => {
 
   it('sets the style guide through the store, and undo puts the old text back', async () => {
     fake.guide = JSON.stringify({ project: { voice: 'Wry.' } });
-    const proposal: AnyProposal = {
+    const proposal: AnyProposal<Record<string, unknown>> = {
       ...edit(),
       kind: 'styleGuide',
       targetKind: 'meta',
