@@ -299,13 +299,13 @@ fn a_file_that_needs_a_newer_lorecraft_is_refused_naming_the_version() {
     let file = saved_project(
         &dir,
         "future.lorecraft",
-        "UPDATE meta SET value = '0.3.0' WHERE key = 'min_reader_version';
-         UPDATE meta SET value = '0.3.2' WHERE key = 'written_by_version';",
+        "UPDATE meta SET value = '99.0.0' WHERE key = 'min_reader_version';
+         UPDATE meta SET value = '99.0.2' WHERE key = 'written_by_version';",
     );
     let message = refused(&file, "TOO_NEW");
     assert_eq!(
         message,
-        "This project was saved by LoreCraft 0.3.2, which added things this version can't read. Update LoreCraft to 0.3 or later to open it."
+        "This project was saved by LoreCraft 99.0.2, which added things this version can't read. Update LoreCraft to 99.0 or later to open it."
     );
     assert_eq!(validate_project_file(&file).unwrap_err().code, "TOO_NEW");
 

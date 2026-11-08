@@ -138,6 +138,8 @@ describe('drafting a scene', () => {
     // Continue, which was there before, follows the book's point of view and tense too.
     await page.locator('.prose-manuscript').click();
     await aiMenu(page, 'Continue writing');
+    // With nothing typed and one version, the Guided Continue box runs Continue as before.
+    await page.getByRole('textbox', { name: 'What should happen next?' }).press('Enter');
     await suggestions(page).waitFor({ timeout: 30_000 });
     requests = await chatRequests();
     assert.match(requests.at(-1), /Point of view: first person/);

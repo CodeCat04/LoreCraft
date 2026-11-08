@@ -71,16 +71,16 @@ describe('upgrade', () => {
     copyFileSync(SAMPLE, file);
     const db = new DatabaseSync(file);
     db.exec(
-      "INSERT OR REPLACE INTO meta (key, value) VALUES ('min_reader_version', '0.3.0'), ('written_by_version', '0.3.2')",
+      "INSERT OR REPLACE INTO meta (key, value) VALUES ('min_reader_version', '99.0.0'), ('written_by_version', '99.0.2')",
     );
     db.close();
     const before = readFileSync(file);
 
     app = await launch(workspace);
     await openFromStart(file);
-    const toast = app.page.locator('.toasts').getByText(/saved by LoreCraft 0\.3\.2/);
+    const toast = app.page.locator('.toasts').getByText(/saved by LoreCraft 99\.0\.2/);
     await toast.waitFor();
-    assert.match(await toast.innerText(), /which added things this version can't read\. Update LoreCraft to 0\.3 or later to open it\./);
+    assert.match(await toast.innerText(), /which added things this version can't read\. Update LoreCraft to 99\.0 or later to open it\./);
     await app.screenshot('upgrade-too-new');
     assert.equal(await app.page.locator('.topbar').count(), 0, 'still on the start screen');
     assert.deepEqual(readFileSync(file), before);
