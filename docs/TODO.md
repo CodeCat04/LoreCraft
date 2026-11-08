@@ -108,3 +108,15 @@ The outside AI can shape the book itself, not only its text, at the suggest or e
 - [x] Plot threads: `get_threads`, `create_thread`, `rename_thread`, `delete_thread`, `add_scene_to_thread`, `remove_scene_from_thread`.
 - [x] Local-only scenes and chapters stay hidden and refused unless shared; moving or trashing a node that holds local-only scenes is refused.
 - Code: src-tauri/src/mcp/areas/structure.rs; src/mcp/kinds/structure.tsx; e2e/mcp-book.test.mjs.
+## 15. MCP: the wiki
+An outside AI can change the wiki, not only suggest new pages. Every change has Undo.
+- [x] `update_page`: summary, status, page type, aliases and categories (set, add or remove). Only the given fields change; the old values are kept for Undo.
+- [x] `set_infobox_fields`: set, rename or remove fields with their kind, or replace them all. Fields keep their place, key and story changes. Timeline dates and family fields come from these, so no separate timeline tool.
+- [x] `rename_page` through the app's rename and its preview: links follow, the old title stays as an alias, and the call says how many documents' links change.
+- [x] `trash_page` and `restore_page`. Never purge.
+- [x] `add_talk_note`: a Markdown note at the end of the Talk tab.
+- [x] `add_relationship` and `remove_relationship` on the explicit relationships; family fields follow `parent of` and `spouse`.
+- [x] `add_map_pin`, `move_map_pin` and `remove_map_pin`.
+- [x] Reads: `list_categories`, `list_page_types`, `get_page_history`, `list_maps`.
+- [x] Local-only pages are hidden unless shared, and refused even when shared.
+- Code: src-tauri/src/mcp/areas/wiki.rs; src/mcp/kinds/wiki.tsx; e2e/mcp-wiki.test.mjs.

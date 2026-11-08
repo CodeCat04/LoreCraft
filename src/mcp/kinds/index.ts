@@ -11,6 +11,7 @@ import { sceneDetailsKind } from './sceneDetails';
 import { styleGuideKind } from './styleGuide';
 import { STRUCTURE_KINDS } from './structure';
 import { editKind, insertKind, rewriteKind } from './text';
+import { WIKI_KINDS } from './wiki';
 
 export const KINDS: ProposalKind[] = [
   editKind,
@@ -22,6 +23,7 @@ export const KINDS: ProposalKind[] = [
   sceneDetailsKind,
   styleGuideKind,
   ...STRUCTURE_KINDS,
+  ...WIKI_KINDS,
 ];
 
 const byName = new Map(KINDS.map((kind) => [kind.kind, kind]));
