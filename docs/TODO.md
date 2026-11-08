@@ -97,3 +97,16 @@ The writer uses Claude Code through LoreCraft's MCP server and found it far too 
 - [x] Hard limits enforced in Rust (`mcp/limits.rs`), stated in the server instructions and tested: no tool changes MCP permissions or settings, AI providers or keys, spending limits or local-only flags; none deletes the project or writes outside it; local-only content stays hidden unless shared; the pending cap counts changes waiting for the window too.
 - [x] Server instructions, tool descriptions and docs/MCP.md explain the three levels; docs/MCP.md has "Adding an MCP tool".
 - Code: src-tauri/src/mcp/areas/, write.rs, limits.rs, suggest.rs; src/mcp/kinds/, auto.ts, actions.ts, ProposalsView.tsx, McpSettings.tsx.
+
+## MCP: the wiki
+An outside AI can change the wiki, not only suggest new pages. Every change has Undo.
+- [x] `update_page`: summary, status, page type, aliases and categories (set, add or remove). Only the given fields change; the old values are kept for Undo.
+- [x] `set_infobox_fields`: set, rename or remove fields with their kind, or replace them all. Fields keep their place, key and story changes. Timeline dates and family fields come from these, so no separate timeline tool.
+- [x] `rename_page` through the app's rename and its preview: links follow, the old title stays as an alias, and the call says how many documents' links change.
+- [x] `trash_page` and `restore_page`. Never purge.
+- [x] `add_talk_note`: a Markdown note at the end of the Talk tab.
+- [x] `add_relationship` and `remove_relationship` on the explicit relationships; family fields follow `parent of` and `spouse`.
+- [x] `add_map_pin`, `move_map_pin` and `remove_map_pin`.
+- [x] Reads: `list_categories`, `list_page_types`, `get_page_history`, `list_maps`.
+- [x] Local-only pages are hidden unless shared, and refused even when shared.
+- Code: src-tauri/src/mcp/areas/wiki.rs; src/mcp/kinds/wiki.tsx; e2e/mcp-wiki.test.mjs.

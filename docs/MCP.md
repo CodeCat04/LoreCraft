@@ -111,6 +111,10 @@ Reading:
 | `get_settings_overview` | What the tool may do here: the permission level, whether local-only content is shared, and the project's language. It cannot change them |
 | `list_canvases` | The project's canvases, by title |
 | `get_canvas` | One canvas: an outline of its cards, then its JSON Canvas data |
+| `list_categories` | The wiki's categories, with how many pages are in each |
+| `list_page_types` | The page types in use and your own types, with the infobox fields (label, key, kind) each one uses |
+| `get_page_history` | A page's saved versions in History, newest first |
+| `list_maps` | Your maps and their pins, with each pin's id, page or label, and position |
 
 Every page's status is stated, and the tool descriptions explain them:
 
@@ -134,6 +138,15 @@ Changing things, with the app open (see [Permission levels](#permission-levels))
 | `propose_new_page` | Suggests a new page, from a title, type, Markdown body and infobox fields |
 | `set_style_guide` | Replaces or adds to the project's style guide: free-form `text` (kept as voice notes) or any field, with `mode` `replace` or `append` |
 | `add_idea` | Adds a short idea to your idea inbox, marked with the tool it came from. It changes no page or scene |
+| `update_page` | Changes a page's summary, status, page type, aliases or categories (set a whole list, or add and remove names). Only what is given changes |
+| `set_infobox_fields` | Sets, renames or removes infobox fields, with their kind (text, longtext, date, number, page, pages), or replaces them all. Fields keep their place and key. Timeline dates and family fields come from these |
+| `rename_page` | Renames a page with the app's rename: links follow and the old title stays as an alias, by default. Says how many documents' links change |
+| `trash_page` / `restore_page` | Moves a page to the trash, or brings it back. Nothing is deleted for good |
+| `add_talk_note` | Adds a Markdown note to the end of a page's Talk tab |
+| `add_relationship` / `remove_relationship` | Records or removes a relationship between two pages. `parent of` and `spouse` keep family fields in step |
+| `add_map_pin` / `move_map_pin` / `remove_map_pin` | Adds, moves or removes a pin on a map, for a page or a label |
+
+The wiki tools never touch a local-only page, even when you share local-only content: it cannot be changed, renamed or trashed from outside. Timeline dates are infobox `date` fields and scene story dates, so they are set with `set_infobox_fields` and `propose_scene_details`.
 
 Pages are also offered as MCP resources (`lorecraft://page/<id>`), and there is a `catch_up` prompt.
 
