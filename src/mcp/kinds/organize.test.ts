@@ -184,9 +184,14 @@ describe('idea kinds', () => {
     const p = proposal('addIdea', { text: 'A new moon\n\n(From Claude Code)' });
     const info = await applied(p);
     const idea = fake.ideas.find((i) => i.text.startsWith('A new moon'))!;
-    idea.updatedAt = 'edited';
+    idea.text = 'A new moon, edited';
     expect((await undo(p, info)).ok).toBe(false);
-    idea.updatedAt = (info as { updatedAt: string }).updatedAt;
+    idea.text = 'A new moon\n\n(From Claude Code)';
+    idea.status = 'done';
+    expect((await undo(p, info)).ok).toBe(false);
+    // Marked done and opened again since: it is as it was added.
+    idea.status = 'open';
+    idea.updatedAt = 'later';
     expect((await undo(p, info)).ok).toBe(true);
     expect(fake.ideas.some((i) => i.text.startsWith('A new moon'))).toBe(false);
   });

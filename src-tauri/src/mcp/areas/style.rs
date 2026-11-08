@@ -114,7 +114,8 @@ fn set_style_guide(cx: &WriteCx, args: &Value) -> AppResult<Draft> {
     }
     for (name, _) in FIELDS {
         if let Some(value) = args.get(*name).and_then(Value::as_str) {
-            if *name == "voice" && !given.is_empty() {
+            // Only text comes before the fields, so a voice already given came from text.
+            if *name == "voice" && given.first().is_some_and(|(n, _)| *n == "voice") {
                 // text and voice both name the voice notes, so they go in together.
                 let joined = format!("{}\n\n{}", given[0].1, value.trim());
                 given[0].1 = joined.trim().to_string();

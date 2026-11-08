@@ -692,6 +692,21 @@ mod tests {
     }
 
     #[test]
+    fn the_style_guide_shows_each_field_and_voice_stays_its_own_field() {
+        let (engine, _dir, _scene) = project();
+        call(&engine, "c", "set_style_guide", &json!({ "tense": "Past tense", "voice": "Wry." }), false).unwrap();
+        let p = last(&engine);
+        assert_eq!(p["payload"]["changes"]["tense"], "Past tense");
+        assert_eq!(p["payload"]["changes"]["voice"], "Wry.");
+        assert!(read_tool(&engine, "get_style_guide", json!({})).unwrap().contains("no style guide yet"));
+        rpc(&engine, "project.setMeta", json!({ "key": "writingStyles.guide", "value": "{\"project\":{\"tense\":\"Past tense\",\"avoid\":\"suddenly\"}}" }));
+        let guide = read_tool(&engine, "get_style_guide", json!({})).unwrap();
+        assert!(guide.contains("## tense (Tense)\nPast tense"), "{guide}");
+        assert!(guide.contains("## avoid (Words and phrases to avoid)\nsuddenly"), "{guide}");
+        assert!(!guide.contains("## pov"), "{guide}");
+    }
+
+    #[test]
     fn at_the_edit_level_a_style_change_says_done() {
         let (engine, _dir, _scene) = project();
         let helper = window(&engine);

@@ -116,13 +116,16 @@ async function applyAdd(p: AnyProposal<AddIdeaPayload>): Promise<ApplyResult> {
   }
 }
 
-/** An idea the writer has not touched since goes again. */
-async function undoAdd(_p: AnyProposal<AddIdeaPayload>, undo: unknown): Promise<UndoResult> {
+/**
+ * An idea still as it was added goes again: the same text, still open. A change that was
+ * made and undone since leaves it as it was, so it does not count.
+ */
+async function undoAdd(p: AnyProposal<AddIdeaPayload>, undo: unknown): Promise<UndoResult> {
   const info = undo as IdeaUndo | undefined;
   try {
     const idea = info?.id ? await findIdea(info.id) : undefined;
     if (!idea) return { ok: false, reason: goneSince() };
-    if (idea.updatedAt !== info!.updatedAt) return { ok: false, reason: changedSince() };
+    if (idea.text !== p.payload.text || idea.status !== 'open') return { ok: false, reason: changedSince() };
     await ideas.remove(idea.id);
   } catch (error) {
     return { ok: false, reason: errorMessage(error) };

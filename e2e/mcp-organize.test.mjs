@@ -111,8 +111,8 @@ describe('mcp: styles, prompts, ideas and comments', () => {
     assert.match(await read(client, 'list_writing_styles', { kind: 'custom' }), /Project default style: Glass voice/);
 
     // A prompt of the writer's own.
-    await done(client, 'create_prompt', { name: 'Tighten', template: 'Tighten this: {{selection}}', scope: 'selection' });
-    assert.match(await read(client, 'list_prompts', { scope: 'selection' }), /Tighten/);
+    await done(client, 'create_prompt', { name: 'Ember polish', template: 'Polish this: {{selection}}', scope: 'selection' });
+    assert.match(await read(client, 'list_prompts', { scope: 'selection' }), /Ember polish/);
 
     // Ideas: added with Undo at this level, then marked done.
     await done(client, 'add_idea', { text: 'What if the gate remembers?' });
@@ -146,8 +146,8 @@ describe('mcp: styles, prompts, ideas and comments', () => {
     await page.getByRole('button', { name: /^Undo: Idea: What if the gate/ }).first().click();
     await waitUntil(async () => !(await ideaList(page)).some((i) => i.id === idea.id), 5000, 'the idea to go');
 
-    await page.getByRole('button', { name: 'Undo: Tighten' }).click();
-    await waitUntil(async () => !/Tighten/.test(await read(client, 'list_prompts', { scope: 'selection' })), 5000, 'the prompt to go');
+    await page.getByRole('button', { name: 'Undo: Ember polish' }).click();
+    await waitUntil(async () => !/Ember polish/.test(await read(client, 'list_prompts', { scope: 'selection' })), 5000, 'the prompt to go');
 
     await page.getByRole('button', { name: 'Undo: Default style for the project' }).click();
     await waitUntil(async () => !(await choices(page)).project, 5000, 'the default style to clear');
