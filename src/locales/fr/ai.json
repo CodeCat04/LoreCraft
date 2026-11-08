@@ -707,7 +707,7 @@
   "This profile has no prices set, so the cost cannot be estimated.": "Ce profil n’a pas de prix définis, le coût ne peut donc pas être estimé.",
   "this project": "ce projet",
   "This project": "Ce projet",
-  "This project carries a copy of this style. The custom style itself is not on this computer, so only its prompt is shown. Edit a copy to add it to your own styles.": "Ce projet contient une copie de ce style. Le style personnalisé lui-même n’est pas sur cet ordinateur, donc seul son prompt est affiché. Modifiez une copie pour l’ajouter à vos styles.",
+  "This project carries a copy of this style. The custom style itself is not on this computer, so only its prompt is shown. Edit a copy to add it to your own styles, or remove it from this project.": "Ce projet contient une copie de ce style. Le style personnalisé lui-même n’est pas sur cet ordinateur, donc seul son prompt est affiché. Modifiez une copie pour l’ajouter à vos styles, ou retirez-le de ce projet.",
   "This project has no books yet.": "Ce projet n’a pas encore de livre.",
   "This project no longer has a style.": "Ce projet n’a plus de style.",
   "This project: {tokens} tokens": "Ce projet : {tokens} jetons",
@@ -878,5 +878,10 @@
   "Later replies are kept as an earlier version.": "Les réponses suivantes sont gardées comme version précédente.",
   "Save & run": "Enregistrer et lancer",
   "Versions of this message": "Versions de ce message",
-  "Change this message and run the chat again from here. Up arrow in an empty message box edits your last one.": "Modifiez ce message et relancez la discussion à partir d’ici. La flèche haut dans une zone de message vide modifie le dernier."
+  "Change this message and run the chat again from here. Up arrow in an empty message box edits your last one.": "Modifiez ce message et relancez la discussion à partir d’ici. La flèche haut dans une zone de message vide modifie le dernier.",
+  "This project uses it. Deleting it also stops using it here. Other projects that use it keep their own copy of the prompt.": "Ce projet l’utilise. Le supprimer arrête aussi de l’utiliser ici. Les autres projets qui l’utilisent gardent leur propre copie du prompt.",
+  "Remove {name} from this project?": "Retirer {name} de ce projet ?",
+  "This project stops using it, wherever it was chosen, and its copy of the prompt is removed.": "Ce projet cesse de l’utiliser, partout où il était choisi, et sa copie du prompt est retirée.",
+  "Removed {name} from this project.": "{name} a été retiré de ce projet.",
+  "Remove from this project": "Retirer de ce projet"
 }

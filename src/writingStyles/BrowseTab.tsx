@@ -14,6 +14,7 @@ import { useSettings } from '../state/settings';
 import type { Book } from '../lib/types';
 import { compareStyles, searchStyles, sortName } from './library';
 import { buildStylePrompt, countWords } from './prompt';
+import { deleteStyleAsking, isOwnStyle, removeProjectCopyAsking } from './removeStyle';
 import { getStyle, listStyles, loadChoices, setActiveStyle, toggleFavorite } from './store';
 import { GENRES, TRAIT_FIELDS, genreLabel, traitLabel, type CustomStyle, type StoredChoices, type WritingStyle } from './types';
 import { copyOf, goToTab, useStylesUi, type KindFilter } from './uiStore';
@@ -59,7 +60,7 @@ function projectCopies(choices: StoredChoices | undefined): CustomStyle[] {
       kind: 'custom' as const,
       name: choice.name ?? t('Saved style'),
       genres: [],
-      summary: t('This project carries a copy of this style. The custom style itself is not on this computer, so only its prompt is shown. Edit a copy to add it to your own styles.'),
+      summary: t('This project carries a copy of this style. The custom style itself is not on this computer, so only its prompt is shown. Edit a copy to add it to your own styles, or remove it from this project.'),
       traits: { narration: '', sentences: '', diction: '', dialogue: '', description: '', pacing: '', signature: '', avoid: '' },
       promptOverride: choice.prompt,
     }];
@@ -160,6 +161,25 @@ function Actions({ style, choices, books }: { style: WritingStyle; choices: Stor
         {t('Edit a copy')}
       </button>
       <button type="button" className="btn" onClick={addToBlend}>{t('Blend')}</button>
+      {style.kind === 'custom' && (isOwnStyle(style.id) ? (
+        <button
+          type="button"
+          className="btn btn-danger"
+          aria-label={t('Delete {name}', { name: style.name })}
+          onClick={() => void deleteStyleAsking(style)}
+        >
+          {t('Delete')}
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-danger"
+          disabled={!open}
+          onClick={() => void removeProjectCopyAsking(style)}
+        >
+          {t('Remove from this project')}
+        </button>
+      ))}
     </div>
   );
 }

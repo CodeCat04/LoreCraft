@@ -272,6 +272,55 @@ describe('writing styles', () => {
     assert.match(await page.getByTestId('style-prompt').innerText(), /Write in very short lines/);
   });
 
+  it('deletes a style from Browse, and stops using it here', async () => {
+    app = await launch(workspace);
+    const { page } = app;
+    await createProject(page, 'Delete World');
+    await openStyles(page);
+    await openTab(page, 'My styles');
+    for (const name of ['Doomed', 'Spare']) {
+      await page.getByRole('button', { name: 'New style' }).click();
+      await page.getByRole('textbox', { name: 'Name' }).fill(name);
+      await page.getByRole('textbox', { name: /^Sentences/ }).fill('Short lines.');
+      await page.getByRole('button', { name: 'Save style' }).click();
+      await page.getByRole('button', { name: `Edit ${name}` }).waitFor();
+    }
+
+    // A style in use: the question says so, and deleting it stops using it here.
+    await openTab(page, 'Browse');
+    await page.getByRole('button', { name: 'Mine', exact: true }).click();
+    await page.locator('.styles-row', { hasText: 'Doomed' }).click();
+    await page.getByRole('heading', { name: 'Doomed' }).waitFor();
+    await page.getByRole('button', { name: 'Use for this project' }).click();
+    await waitForStatus(page, 'Style: Doomed');
+    await page.getByRole('button', { name: 'Delete Doomed' }).click();
+    await page.getByText('This project uses it.', { exact: false }).waitFor();
+    await app.screenshot('styles-delete-in-use-dark');
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await waitForStatus(page, 'Style: none');
+    await page.getByRole('heading', { name: 'Doomed' }).waitFor({ state: 'detached' });
+    const custom = (await rpc(page, 'settings.get')).writingStyles.custom.map((s) => s.name);
+    assert.deepEqual(custom, ['Spare']);
+    assert.equal(JSON.parse(await rpc(page, 'project.getMeta', { key: 'writingStyles.choices' })).project, undefined);
+
+    // A copy only the project has can be removed from it.
+    await page.locator('.styles-row', { hasText: 'Spare' }).click();
+    await page.getByRole('heading', { name: 'Spare' }).waitFor();
+    await page.getByRole('button', { name: 'Use for this project' }).click();
+    await waitForStatus(page, 'Style: Spare');
+    await rpc(page, 'settings.update', { patch: { writingStyles: { custom: [] } } });
+    await page.reload();
+    await page.locator('.topbar').waitFor();
+    await openStyles(page);
+    await page.getByRole('button', { name: 'Mine', exact: true }).click();
+    await page.getByRole('heading', { name: 'Spare' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Delete Spare' }).count(), 0);
+    await page.getByRole('button', { name: 'Remove from this project' }).click();
+    await page.getByRole('button', { name: 'Remove', exact: true }).click();
+    await waitForStatus(page, 'Style: none');
+    await page.getByRole('heading', { name: 'Spare' }).waitFor({ state: 'detached' });
+  });
+
   it('blends two styles and saves the blend', async () => {
     app = await launch(workspace);
     const { page } = app;

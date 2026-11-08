@@ -2,6 +2,11 @@
 
 What changed in each release. Versions follow [semantic versioning](https://semver.org/), and the newest is at the top. The notes for a release are also what the app shows under Help > "Check for updates".
 
+## 0.4.2
+
+- **Deleting your own writing styles.** Browse now has a **Delete** button for your own styles, next to Edit a copy, as well as the one in My styles. If the open project uses the style, the question says so, and deleting it also stops using it here: for the project, its books and its scenes. Before, a deleted style that was in use stayed listed under Mine and in the status bar, so it looked as though it couldn't be deleted. Other projects still keep their own copy of it.
+- **Removing a style a project carries.** A style the project uses but that isn't in your own styles, from another computer or deleted earlier, now has **Remove from this project**.
+
 ## 0.4.1
 
 - **Everyday dates in scene details.** An in-world date such as "Thursday, October 13, 2022", "October 13, 2022", "13 Oct 2022" or "October 2022" now goes in order on the timeline, exactly where 2022-10-13 would. Before, these were marked as dates that can't be put in order. A weekday in front is left out, and month names work in English or the interface language. Projects with their own calendar months keep using them.

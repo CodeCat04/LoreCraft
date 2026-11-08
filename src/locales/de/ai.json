@@ -707,7 +707,7 @@
   "This profile has no prices set, so the cost cannot be estimated.": "Für dieses Profil sind keine Preise festgelegt, daher lassen sich die Kosten nicht schätzen.",
   "this project": "dieses Projekt",
   "This project": "Dieses Projekt",
-  "This project carries a copy of this style. The custom style itself is not on this computer, so only its prompt is shown. Edit a copy to add it to your own styles.": "Dieses Projekt enthält eine Kopie dieses Stils. Der eigene Stil selbst ist nicht auf diesem Computer, daher wird nur sein Prompt angezeigt. Bearbeite eine Kopie, um ihn zu deinen Stilen hinzuzufügen.",
+  "This project carries a copy of this style. The custom style itself is not on this computer, so only its prompt is shown. Edit a copy to add it to your own styles, or remove it from this project.": "Dieses Projekt enthält eine Kopie dieses Stils. Der eigene Stil selbst ist nicht auf diesem Computer, daher wird nur sein Prompt angezeigt. Bearbeite eine Kopie, um ihn zu deinen Stilen hinzuzufügen, oder entferne ihn aus diesem Projekt.",
   "This project has no books yet.": "Dieses Projekt hat noch keine Bücher.",
   "This project no longer has a style.": "Dieses Projekt hat keinen Stil mehr.",
   "This project: {tokens} tokens": "Dieses Projekt: {tokens} Tokens",
@@ -878,5 +878,10 @@
   "Later replies are kept as an earlier version.": "Spätere Antworten bleiben als frühere Version erhalten.",
   "Save & run": "Speichern und ausführen",
   "Versions of this message": "Versionen dieser Nachricht",
-  "Change this message and run the chat again from here. Up arrow in an empty message box edits your last one.": "Diese Nachricht ändern und den Chat ab hier neu ausführen. Pfeil nach oben in einem leeren Nachrichtenfeld bearbeitet die letzte."
+  "Change this message and run the chat again from here. Up arrow in an empty message box edits your last one.": "Diese Nachricht ändern und den Chat ab hier neu ausführen. Pfeil nach oben in einem leeren Nachrichtenfeld bearbeitet die letzte.",
+  "This project uses it. Deleting it also stops using it here. Other projects that use it keep their own copy of the prompt.": "Dieses Projekt verwendet ihn. Beim Löschen wird er auch hier nicht mehr verwendet. Andere Projekte, die ihn verwenden, behalten ihre eigene Kopie des Prompts.",
+  "Remove {name} from this project?": "{name} aus diesem Projekt entfernen?",
+  "This project stops using it, wherever it was chosen, and its copy of the prompt is removed.": "Dieses Projekt verwendet ihn nicht mehr, wo auch immer er gewählt war, und seine Kopie des Prompts wird entfernt.",
+  "Removed {name} from this project.": "{name} wurde aus diesem Projekt entfernt.",
+  "Remove from this project": "Aus diesem Projekt entfernen"
 }

@@ -170,6 +170,37 @@ export async function setActiveStyle(scope: StyleScope, styleId: string | null):
   announce();
 }
 
+/** How many places in these choices use a style: the project, each book and each scene. */
+export function countStyleUses(choices: StoredChoices, styleId: string): number {
+  const stored = [choices.project, ...Object.values(choices.books ?? {}), ...Object.values(choices.scenes ?? {})];
+  return stored.filter((choice) => choice?.styleId === styleId).length;
+}
+
+/** How many places in the open project use a style. None with no project open. */
+export async function styleUsesHere(styleId: string): Promise<number> {
+  return countStyleUses(await loadChoices(), styleId);
+}
+
+/**
+ * Stops using a style anywhere in the open project, which also drops the project's copy of its
+ * prompt. Wherever it was chosen, the wider choice applies again.
+ */
+export async function stopUsingStyle(styleId: string): Promise<void> {
+  if (!hasProject()) return;
+  await inOrder(async () => {
+    const choices = await loadChoices();
+    if (countStyleUses(choices, styleId) === 0) return;
+    const keep = (entries: Record<string, StoredStyleChoice> | undefined) =>
+      Object.fromEntries(Object.entries(entries ?? {}).filter(([, choice]) => choice?.styleId !== styleId));
+    if (choices.project?.styleId === styleId) delete choices.project;
+    choices.books = keep(choices.books);
+    choices.scenes = keep(choices.scenes);
+    await api.project.setMeta(CHOICES_KEY, JSON.stringify(choices));
+    await writeResolvedText();
+  });
+  announce();
+}
+
 /** A style that names its source by id needs no copy. A custom one must keep this current. */
 async function refreshProjectCopies(style: CustomStyle): Promise<void> {
   if (!hasProject()) return;

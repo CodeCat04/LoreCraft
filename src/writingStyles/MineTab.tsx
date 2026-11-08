@@ -4,12 +4,12 @@ import { useMemo, useState } from 'react';
 
 import { t } from '../lib/i18n';
 import { errorMessage } from '../lib/rpc';
-import { confirm } from '../shell/dialogs';
 import { toast } from '../shell/toasts';
 import { useLocale } from '../state/language';
 import { useSettings } from '../state/settings';
 import { buildStylePrompt, countWords, PROMPT_WORD_LIMIT } from './prompt';
-import { deleteCustomStyle, saveCustomStyle } from './store';
+import { deleteStyleAsking } from './removeStyle';
+import { saveCustomStyle } from './store';
 import { GENRES, TRAIT_FIELDS, genreLabel, traitHint, traitLabel, type CustomStyle, type Genre, type TraitKey } from './types';
 import { blankStyle, goToTab, useStylesUi } from './uiStore';
 
@@ -118,22 +118,6 @@ export function MineTab() {
   const set = useStylesUi((s) => s.set);
   const sorted = useMemo(() => [...custom].sort((a, b) => a.name.localeCompare(b.name)), [custom]);
 
-  const remove = async (style: CustomStyle) => {
-    const yes = await confirm({
-      title: t('Delete {name}?', { name: style.name }),
-      message: t('It leaves your styles on this computer. Any project that uses it keeps its own copy of the prompt.'),
-      confirmLabel: t('Delete'),
-      danger: true,
-    });
-    if (!yes) return;
-    try {
-      await deleteCustomStyle(style.id);
-      toast(t('Deleted {name}.', { name: style.name }));
-    } catch (e) {
-      toast(errorMessage(e), 'error');
-    }
-  };
-
   if (editing) {
     return (
       <div className="styles-scroll">
@@ -180,7 +164,7 @@ export function MineTab() {
                   {t('Open')}
                 </button>
                 <button type="button" className="btn btn-sm" aria-label={t('Edit {name}', { name: style.name })} onClick={() => set({ editing: style })}>{t('Edit')}</button>
-                <button type="button" className="btn btn-sm btn-danger" aria-label={t('Delete {name}', { name: style.name })} onClick={() => void remove(style)}>{t('Delete')}</button>
+                <button type="button" className="btn btn-sm btn-danger" aria-label={t('Delete {name}', { name: style.name })} onClick={() => void deleteStyleAsking(style)}>{t('Delete')}</button>
               </li>
             ))}
           </ul>
