@@ -282,10 +282,12 @@ pub fn read_live<T>(
 ) -> AppResult<T> {
     let settings = engine.mcp.settings();
     let name = engine.status().name;
+    let custom_styles = areas::styles::custom_styles(engine);
     engine
         .read(|conn| {
             let mut ctx = tools::Ctx::new(conn, name, true, settings.share_local_only)?;
             ctx.permission = Some(settings.permission.clone());
+            ctx.custom_styles = Some(custom_styles);
             f(&ctx)
         })
         .map_err(|e| {

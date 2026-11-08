@@ -10,6 +10,10 @@ import { newChapterKind, newSceneKind } from './newScene';
 import { sceneDetailsKind } from './sceneDetails';
 import { styleGuideKind } from './styleGuide';
 import { editKind, insertKind, rewriteKind } from './text';
+import { stylesKinds } from './styles';
+import { promptsKinds } from './prompts';
+import { ideasKinds } from './ideas';
+import { commentsKinds } from './comments';
 
 export const KINDS: ProposalKind[] = [
   editKind,
@@ -20,6 +24,10 @@ export const KINDS: ProposalKind[] = [
   newChapterKind,
   sceneDetailsKind,
   styleGuideKind,
+  ...stylesKinds,
+  ...promptsKinds,
+  ...ideasKinds,
+  ...commentsKinds,
 ];
 
 const byName = new Map(KINDS.map((kind) => [kind.kind, kind]));

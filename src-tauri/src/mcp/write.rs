@@ -37,7 +37,14 @@ pub struct Draft {
     pub suggested: String,
     /// Said after "Done: " once applied.
     pub done: String,
+    /// Below the edit level, run this at once instead of storing a suggestion. Only for
+    /// something the writer reviews anyway, such as an idea for their inbox. At the edit
+    /// level the draft is applied by the app as usual, so it shows with Undo.
+    pub at_once: Option<AtOnce>,
 }
+
+/// Makes a draft's change in Rust, from its payload. See `Draft::at_once`.
+pub type AtOnce = fn(&Engine, &str, &Value) -> AppResult<String>;
 
 impl Draft {
     pub fn new(kind: &'static str, title: impl Into<String>, payload: Value) -> Self {
@@ -52,6 +59,7 @@ impl Draft {
             done: format!("changed \"{title}\"."),
             title,
             payload,
+            at_once: None,
         }
     }
 
@@ -70,6 +78,12 @@ impl Draft {
         self.done = text.into();
         self
     }
+
+    /// Below the edit level, `run` makes the change at once and says what it did.
+    pub fn at_once(mut self, run: AtOnce) -> Self {
+        self.at_once = Some(run);
+        self
+    }
 }
 
 /// What a write handler may use. Reading goes through a `Ctx`, so local-only content stays
@@ -86,8 +100,10 @@ impl<'a> WriteCx<'a> {
     }
 
     pub fn read<T>(&self, f: impl FnOnce(&Ctx) -> AppResult<T>) -> AppResult<T> {
+        let custom_styles = super::areas::styles::custom_styles(self.engine);
         self.engine.read(|conn| {
-            let ctx = Ctx::new(conn, String::new(), true, self.share)?;
+            let mut ctx = Ctx::new(conn, String::new(), true, self.share)?;
+            ctx.custom_styles = Some(custom_styles);
             f(&ctx)
         })
     }
@@ -119,6 +135,9 @@ pub const NO_WINDOW: &str = "LoreCraft's window did not respond, so nothing has 
 pub fn submit(engine: &Engine, client: &str, draft: Draft, permission: &str, waits: Waits) -> AppResult<String> {
     limits::check_draft(&draft)?;
     let auto = permission == PERMISSION_EDIT;
+    if let (false, Some(run)) = (auto, draft.at_once) {
+        return run(engine, client, &draft.payload);
+    }
     let status = if auto { STATUS_AUTO } else { STATUS_PENDING };
     let id = suggest::insert(engine, client, &draft, status)?;
     if !auto {

@@ -1,0 +1,13 @@
+{
+  "New writing style: {name}": "Nouveau style d'écriture : {name}",
+  "A blend of {styles}.": "Un mélange de {styles}.",
+  "Change to the writing style {name}": "Modification du style d'écriture {name}",
+  "Delete the writing style {name}": "Supprimer le style d'écriture {name}",
+  "Projects that use it keep their own copy.": "Les projets qui l'utilisent gardent leur propre copie.",
+  "The style {name} is no longer there.": "Le style {name} n'est plus là.",
+  "That style is back already.": "Ce style est déjà revenu.",
+  "Writing style created.": "Style d'écriture créé.",
+  "Writing style changed.": "Style d'écriture modifié.",
+  "Writing style deleted.": "Style d'écriture supprimé.",
+  "Default style changed.": "Style par défaut modifié."
+}

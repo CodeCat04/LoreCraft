@@ -1,29 +1,20 @@
-//! New wiki pages, and ideas for the writer's inbox.
+//! New wiki pages. Ideas for the writer's inbox are in `super::ideas`.
 
 use serde_json::{json, Map, Value};
 
-use super::{direct, write, Tool};
+use super::{write, Tool};
 
-/// An idea is a note, not a chapter.
+/// An idea is a note, not a chapter. Used by `super::ideas`.
 pub const MAX_IDEA_CHARS: usize = 4000;
 use crate::content::title_key;
-use crate::engine::Engine;
 use crate::error::{AppError, AppResult};
-use crate::mcp::suggest::{check_size, optional, required, string_list, MAX_LABEL, MAX_PENDING};
+use crate::mcp::suggest::{check_size, optional, required, string_list, MAX_LABEL};
 use crate::mcp::text::cut;
 use crate::mcp::write::{Draft, WriteCx};
 use crate::rpc::pages;
 
 pub fn tools() -> Vec<Tool> {
     vec![
-        direct(
-            "add_idea",
-            "Leave a short idea in the writer's idea inbox, such as a plot possibility or a question to settle. It changes no page or scene, and the writer decides what to do with it. Needs LoreCraft to be open with this project.",
-            json!({ "type": "object", "properties": {
-                "text": { "type": "string", "description": "The idea, in a sentence or a short paragraph." },
-            }, "required": ["text"] }),
-            add_idea,
-        ),
         write(
             "propose_new_page",
             "Suggest a new wiki page. Depending on the writer's setting, it waits for them under Outside suggestions, or is created at once. It starts as a draft. The body is Markdown and can use [[Page title]] links. Needs LoreCraft to be open with this project.",
@@ -102,38 +93,4 @@ fn propose_new_page(cx: &WriteCx, args: &Value) -> AppResult<Draft> {
             "Suggested a new page \"{title}\" (suggestion {{id}}). It does not exist yet: the writer reviews it in LoreCraft under Outside suggestions, and it starts as a draft."
         ))
         .done(format!("created the page \"{title}\" as a draft.")))
-}
-
-/// An idea goes straight to the inbox, which is the writer's own list to review. It names
-/// the tool it came from, so the writer knows it was not theirs. Since nobody approves it
-/// first, a tool can add only short ones, and only so many while they wait.
-fn add_idea(engine: &Engine, client: &str, args: &Value) -> AppResult<String> {
-    let text = required(args, "text")?.trim();
-    if text.is_empty() {
-        return Err(AppError::invalid("The idea is empty."));
-    }
-    if text.chars().count() > MAX_IDEA_CHARS {
-        return Err(AppError::invalid(
-            "That is too long for an idea. Keep it to a short note, or suggest a page with propose_new_page.",
-        ));
-    }
-    let waiting: i64 = engine.read(|conn| {
-        Ok(conn.query_row(
-            "SELECT COUNT(*) FROM ideas WHERE status = 'open' AND text LIKE '%' || char(10) || '(From %)'",
-            [],
-            |r| r.get(0),
-        )?)
-    })?;
-    if waiting >= MAX_PENDING {
-        return Err(AppError::new(
-            "TOO_MANY",
-            "Too many ideas from outside tools are waiting in the writer's inbox. Ask them to go through those first.",
-        ));
-    }
-    crate::rpc::ideas::handle(
-        engine,
-        "add",
-        json!({ "text": format!("{text}\n\n(From {})", cut(client, MAX_LABEL)) }),
-    )?;
-    Ok("Added to the writer's idea inbox.".to_string())
 }

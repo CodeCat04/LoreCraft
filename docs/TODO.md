@@ -97,3 +97,13 @@ The writer uses Claude Code through LoreCraft's MCP server and found it far too 
 - [x] Hard limits enforced in Rust (`mcp/limits.rs`), stated in the server instructions and tested: no tool changes MCP permissions or settings, AI providers or keys, spending limits or local-only flags; none deletes the project or writes outside it; local-only content stays hidden unless shared; the pending cap counts changes waiting for the window too.
 - [x] Server instructions, tool descriptions and docs/MCP.md explain the three levels; docs/MCP.md has "Adding an MCP tool".
 - Code: src-tauri/src/mcp/areas/, write.rs, limits.rs, suggest.rs; src/mcp/kinds/, auto.ts, actions.ts, ProposalsView.tsx, McpSettings.tsx.
+
+## 14. MCP: styles, prompts, ideas and comments
+The writer asked whether the outside AI could update the style guide and more. These tools give it the rest of the writing setup and the review notes, each with Undo at the edit level.
+- [x] Writing styles: `list_writing_styles` and `get_writing_style` (built-in and custom, with ids, description and prompt); `create_writing_style` (from a prompt or traits, or a blend), `update_writing_style` and `delete_writing_style` for custom styles only; `set_default_style` for the project, a book or a scene. All through the style store. The built-in library reaches Rust as `styles_library.json`, kept in step by a test.
+- [x] Style guide: `get_style_guide` lists each named field as `set_style_guide` takes it, and `set_style_guide` names its fields.
+- [x] Prompt library: `list_prompts`; `create_prompt`, `update_prompt` and `delete_prompt` for the writer's own prompts only.
+- [x] Idea inbox: `list_ideas`, `update_idea`, `resolve_idea`, `idea_to_page` (as the Inbox does it). `add_idea` is a normal write: below the edit level it still goes straight to the inbox; at the edit level it shows under Applied by outside AI, with Undo.
+- [x] Comments: `list_comments`, `add_comment` on a quoted passage (the mark appears in an open editor), `resolve_comment`. The app has no replies, so there is no `reply_comment`.
+- [x] Local-only pages and scenes, and ideas captured in them, stay hidden and are refused unless shared.
+- Code: src-tauri/src/mcp/areas/styles.rs, prompts.rs, ideas.rs, comments.rs; src/mcp/kinds/styles.tsx, prompts.tsx, ideas.tsx, comments.tsx; e2e/mcp-organize.test.mjs.

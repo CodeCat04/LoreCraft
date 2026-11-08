@@ -9,9 +9,10 @@
 //! - `Write`: validates the arguments, resolves what they name through a `WriteCx`, and
 //!   returns a `Draft`. It never changes anything itself. `crate::mcp::write::submit` stores
 //!   the draft as a suggestion, and in edit mode waits while the app applies it.
-//! - `Direct`: changes something at once, whatever the level, apart from read only. Only
-//!   `add_idea` uses it, since an idea is the writer's own list to review. New tools use
-//!   `Write`.
+//! - `Direct`: changes something at once, whatever the level, apart from read only. No tool
+//!   uses it now. `add_idea` is a `Write` whose draft runs at once below the edit level
+//!   (`Draft::at_once`), since an idea is the writer's own list to review, and is applied
+//!   with Undo at the edit level. New tools use `Write`.
 
 use serde_json::{json, Value};
 
@@ -85,6 +86,10 @@ areas! {
     text_edits,
     book_edits,
     lore_edits,
+    styles,
+    prompts,
+    ideas,
+    comments,
 }
 
 pub fn find(name: &str) -> Option<Tool> {
