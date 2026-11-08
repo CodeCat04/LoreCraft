@@ -2,6 +2,34 @@
 
 What changed in each release. Versions follow [semantic versioning](https://semver.org/), and the newest is at the top. The notes for a release are also what the app shows under Help > "Check for updates".
 
+## 0.4.0
+
+Outside AI gets real control. Claude Code, OpenCode and other MCP tools can now work on nearly every part of a project, not only suggest text edits. There are about 80 tools now, up from 21.
+
+- **A new permission: Make changes directly.** In Settings › AI tools (MCP), choose what outside tools may do:
+  - **Read only**;
+  - **Suggest**, where every change waits for you, as before, and which stays the default;
+  - **Make changes directly**, where changes happen at once.
+
+  Each direct change shows a notice and is listed under **Applied by outside AI** in Outside suggestions, with **Undo**. Undo refuses if you've changed that thing since, so it never throws away your newer work.
+- **The wiki.** Edit a page's summary, status, type, aliases, categories and infobox fields. Rename pages, with links following. Trash and restore pages, add Talk notes, record relationships (family fields keep in step), and place map pins.
+- **Books and the manuscript.**
+  - Create books and change their settings: title, point of view, tense, default style, word goal.
+  - Move, rename, trash and restore scenes, chapters and parts, and set their status.
+  - Split and merge scenes.
+  - Set chapter synopses and notes.
+  - Create plot threads and put scenes in them.
+- **Styles.** Update the style guide, field by field. Create, change and blend your own writing styles, and set the default style for the project, a book or a scene. Manage your own prompts.
+- **Organizing.** Work through the idea inbox: edit ideas, mark them done, or turn them into pages. Add comments on a passage and resolve them. Create and edit canvases: cards, arrows, groups and colors, live in an open canvas. Run the rule checks and dismiss or resolve findings. Label pictures and videos.
+- **Limits that stay.** Outside tools can never:
+  - change their own permission, your AI providers and keys, or your spending limit;
+  - change what is marked local only;
+  - delete the project, or write files outside it.
+
+  Local-only pages and scenes stay hidden from them unless you choose to share them. They can run the free rule checks, but not AI checks that would spend your money.
+
+The file format hasn't changed, so 0.4.0 projects still open in 0.3.0. Before opening a project in an older copy, accept or reject any outside suggestions that are waiting.
+
 ## 0.3.0
 
 Drafting help: the AI can now write with you, not only edit. Everything works with a local model, respects "local only" and your spending limit, and arrives as tracked changes for you to accept or reject.
