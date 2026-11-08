@@ -2,7 +2,7 @@
   "name": "lorecraft",
   "license": "AGPL-3.0-only",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "description": "A Wikipedia-style lorebook and novel writer with local or frontier AI.",
   "engines": {

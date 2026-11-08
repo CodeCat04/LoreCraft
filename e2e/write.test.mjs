@@ -426,6 +426,11 @@ describe('write', () => {
     await page.getByLabel('Status').selectOption('revised');
     await page.getByLabel('In-world date').fill('In the time of rain');
     await page.locator('.details-date-hint').waitFor();
+    // Everyday dates can be put in order too.
+    await page.getByLabel('In-world date').fill('Thursday, October 13, 2022');
+    await page.locator('.details-date-hint').waitFor({ state: 'detached' });
+    await page.getByLabel('In-world date').fill('In the time of rain');
+    await page.locator('.details-date-hint').waitFor();
     await page.getByLabel('In-world date').fill('312-04-15');
     await page.locator('.details-date-hint').waitFor({ state: 'detached' });
     await page.getByLabel('Synopsis').fill('They meet at the ford.');

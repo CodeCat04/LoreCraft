@@ -298,7 +298,9 @@ See `src-tauri/migrations/001_init.sql`. In short:
 
 In-world dates are free text with a derived sort key. See `parseStoryDate` in
 `src/lib/storyDate.ts`. A project can name its months (meta key `calendar`), and the list
-`getEras()` returns brings that calendar along, so dates read with it understand them.
+`getEras()` returns brings that calendar along, so dates read with it understand them. A
+project without its own months reads the everyday ones, in English and the interface language,
+so "Thursday, October 13, 2022" sorts where "2022-10-13" does. A weekday in front is left out.
 
 ## Facts that change during the story
 

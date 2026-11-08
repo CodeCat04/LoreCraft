@@ -2,6 +2,10 @@
 
 What changed in each release. Versions follow [semantic versioning](https://semver.org/), and the newest is at the top. The notes for a release are also what the app shows under Help > "Check for updates".
 
+## 0.4.1
+
+- **Everyday dates in scene details.** An in-world date such as "Thursday, October 13, 2022", "October 13, 2022", "13 Oct 2022" or "October 2022" now goes in order on the timeline, exactly where 2022-10-13 would. Before, these were marked as dates that can't be put in order. A weekday in front is left out, and month names work in English or the interface language. Projects with their own calendar months keep using them.
+
 ## 0.4.0
 
 Outside AI gets real control. Claude Code, OpenCode and other MCP tools can now work on nearly every part of a project, not only suggest text edits. There are about 80 tools now, up from 21.

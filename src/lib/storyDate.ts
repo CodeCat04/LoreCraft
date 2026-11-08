@@ -12,10 +12,14 @@
  * "312-04-15" would if Frostmoot is the fourth month. Read both with `getDateContext()`, or
  * just use `getEras()`: the list it returns brings the calendar along, so `parseStoryDate(text,
  * await getEras())` reads the project's months. Pass a calendar, or null, to say otherwise.
+ *
+ * A project without its own months uses the everyday ones, so "Thursday, October 13, 2022",
+ * "13 Oct 2022" and "October 2022" sort exactly where "2022-10-13" would. A weekday in front
+ * is left out, and the names can be English or the interface language's.
  */
 
 import * as api from './api';
-import { t } from './i18n';
+import { currentLocale, t } from './i18n';
 
 export interface Era {
   /** As written in dates, for example "AE" or "Third Age". Case-insensitive. */
@@ -56,6 +60,118 @@ export const MAX_MONTH_DAYS = 99;
 
 const calendarsOfEras = new WeakMap<Era[], Calendar>();
 
+// ---- Month and weekday names ---------------------------------------------------------
+
+const EVERYDAY_MONTHS: CalendarMonth[] = (
+  [
+    ['January', 31], ['February', 29], ['March', 31], ['April', 30], ['May', 31], ['June', 30],
+    ['July', 31], ['August', 31], ['September', 30], ['October', 31], ['November', 30], ['December', 31],
+  ] as const
+).map(([name, days]) => ({ name, days }));
+
+/** Shortenings people write that `Intl` does not give. */
+const EXTRA_MONTH_NAMES: [string, number][] = [['sept', 8]];
+const EXTRA_WEEKDAY_NAMES = ['tues', 'weds', 'thur', 'thurs'];
+
+/** A name for a month, in lowercase, and which month it is, counting from 0. */
+interface MonthName {
+  name: string;
+  index: number;
+}
+
+/** The months a date may name: the project's own, or the everyday ones. */
+interface MonthNames {
+  months: CalendarMonth[];
+  names: MonthName[];
+  everyday: boolean;
+}
+
+function tidyName(name: string): string {
+  return name.replace(/\.$/, '').trim().toLowerCase();
+}
+
+/** The names `Intl` gives each month or weekday, long and short, in a language. */
+function intlNames(locale: string, kind: 'month' | 'weekday', count: number, dateOf: (i: number) => number): string[][] {
+  const out: string[][] = Array.from({ length: count }, () => []);
+  const styles: Intl.DateTimeFormatOptions[] =
+    kind === 'month'
+      ? [{ month: 'long' }, { month: 'short' }, { month: 'long', day: 'numeric' }, { month: 'short', day: 'numeric' }]
+      : [{ weekday: 'long' }, { weekday: 'short' }];
+  try {
+    for (const style of styles) {
+      const format = new Intl.DateTimeFormat(locale, { ...style, timeZone: 'UTC' });
+      for (let i = 0; i < count; i += 1) {
+        const part = format.formatToParts(dateOf(i)).find((p) => p.type === kind)?.value;
+        if (part && /\p{L}/u.test(part)) out[i].push(tidyName(part));
+      }
+    }
+  } catch {
+    // A language Intl does not know adds no names.
+  }
+  return out;
+}
+
+function everydayLocales(): string[] {
+  const locale = currentLocale();
+  return locale && !/^en\b/i.test(locale) ? ['en', locale] : ['en'];
+}
+
+interface EverydayNames {
+  months: MonthNames;
+  /** Longest first, so "thursday" is tried before "thu". */
+  weekdays: string[];
+}
+
+const everydayCache = new Map<string, EverydayNames>();
+
+function everydayNames(): EverydayNames {
+  const locales = everydayLocales();
+  const key = locales.join('|');
+  const cached = everydayCache.get(key);
+  if (cached) return cached;
+  const monthNames = new Map<string, number>();
+  const weekdays = new Set<string>(EXTRA_WEEKDAY_NAMES);
+  EVERYDAY_MONTHS.forEach((month, index) => monthNames.set(month.name.toLowerCase(), index));
+  for (const [name, index] of EXTRA_MONTH_NAMES) monthNames.set(name, index);
+  for (const locale of locales) {
+    intlNames(locale, 'month', 12, (i) => Date.UTC(2001, i, 15)).forEach((names, index) => {
+      for (const name of names) if (!monthNames.has(name)) monthNames.set(name, index);
+    });
+    // 7 January 2001 was a Sunday.
+    for (const names of intlNames(locale, 'weekday', 7, (i) => Date.UTC(2001, 0, 7 + i))) {
+      for (const name of names) weekdays.add(name);
+    }
+  }
+  const result: EverydayNames = {
+    months: { months: EVERYDAY_MONTHS, names: [...monthNames].map(([name, index]) => ({ name, index })), everyday: true },
+    weekdays: [...weekdays].sort((a, b) => b.length - a.length),
+  };
+  everydayCache.set(key, result);
+  return result;
+}
+
+function monthNamesFor(calendar: Calendar | null): MonthNames {
+  if (calendar?.months.length) {
+    return {
+      months: calendar.months,
+      names: calendar.months.map((month, index) => ({ name: month.name.toLowerCase(), index })),
+      everyday: false,
+    };
+  }
+  return everydayNames().months;
+}
+
+/** The text without a weekday in front, as in "Thursday, 13 October 2022", or null if it has none. */
+function withoutWeekday(text: string): string | null {
+  const lower = text.toLowerCase();
+  for (const name of everydayNames().weekdays) {
+    if (!lower.startsWith(name)) continue;
+    const gap = /^\.?,?\s+/.exec(text.slice(name.length));
+    if (gap) return text.slice(name.length + gap[0].length).trim() || null;
+  }
+  return null;
+}
+
 /** The calendar to use: the one given, or the one that came with the eras from `getEras()`. */
 export function calendarFor(eras: Era[], calendar?: Calendar | null): Calendar | null {
   return calendar === undefined ? (calendarsOfEras.get(eras) ?? null) : calendar;
@@ -92,31 +208,32 @@ function numericParts(text: string, era: Era | undefined): StoryDateParts | null
 }
 
 const DAY_FIRST = /^(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?/i;
-const DAY_AFTER_MONTH = /^(\d{1,2})(?:st|nd|rd|th)?\s*,\s*/i;
+/** "15, 312", or "15 312" when a year follows, so that "Frostmoot 15 AE" is still the year 15. */
+const DAY_AFTER_MONTH = /^(\d{1,2})(?:st|nd|rd|th)?(?:\s*,\s*|\s+(?=-?\d))/i;
 
 /** The month a text starts with. A longer name wins, so "Frostmoot" is not read as "Frost". */
-function monthAtStart(lower: string, calendar: Calendar): number {
-  let best = -1;
-  calendar.months.forEach((month, index) => {
-    const name = month.name.toLowerCase();
-    if (!lower.startsWith(name)) return;
-    const after = lower[name.length];
-    if (after !== undefined && !/[\s,]/.test(after)) return;
-    if (best < 0 || name.length > calendar.months[best].name.length) best = index;
-  });
+function monthAtStart(lower: string, names: MonthName[]): MonthName | null {
+  let best: MonthName | null = null;
+  for (const candidate of names) {
+    if (!lower.startsWith(candidate.name)) continue;
+    const after = lower[candidate.name.length];
+    if (after !== undefined && !/[\s,.]/.test(after)) continue;
+    if (!best || candidate.name.length > best.name.length) best = candidate;
+  }
   return best;
 }
 
 /** Reads "15 Frostmoot 312", "Frostmoot 312" and "Frostmoot 15, 312", with an era on the year. */
-function namedParts(text: string, eras: Era[], calendar: Calendar): StoryDateParts | null {
+function namedParts(text: string, eras: Era[], names: MonthNames): StoryDateParts | null {
   const lower = text.replace(/\s+/g, ' ').trim().toLowerCase();
   const lead = DAY_FIRST.exec(lower);
   const afterDay = lead ? lower.slice(lead[0].length) : lower;
-  const index = monthAtStart(afterDay, calendar);
-  if (index < 0) return null;
-  const month = calendar.months[index];
+  const found = monthAtStart(afterDay, names.names);
+  if (!found) return null;
+  const index = found.index;
+  const month = names.months[index];
 
-  let rest = afterDay.slice(month.name.length).replace(/^[\s,]+/, '');
+  let rest = afterDay.slice(found.name.length).replace(/^[\s,.]+/, '');
   let day = lead ? Number(lead[1]) : 0;
   if (!lead) {
     const trailing = DAY_AFTER_MONTH.exec(rest);
@@ -146,15 +263,21 @@ export function parseStoryDateParts(
 ): StoryDateParts | null {
   const text = input.trim();
   if (!text) return null;
+  const names = monthNamesFor(calendarFor(eras, calendar));
+  const parts = partsOf(text, eras, names);
+  if (parts) return parts;
+  const dated = withoutWeekday(text);
+  return dated ? partsOf(dated, eras, names) : null;
+}
+
+function partsOf(text: string, eras: Era[], names: MonthNames): StoryDateParts | null {
   const { era, rest } = splitEra(text, eras);
   const numeric = numericParts(rest, era);
   if (numeric) return numeric;
-  const months = calendarFor(eras, calendar);
-  if (!months?.months.length) return null;
   // A month's name can begin like an era's, so the whole text gets the first try.
-  const whole = namedParts(text, eras, months);
+  const whole = namedParts(text, eras, names);
   if (whole || !era) return whole;
-  const named = namedParts(rest, [], months);
+  const named = namedParts(rest, [], names);
   return named && { ...named, year: eraYear(named.year, era) };
 }
 
@@ -225,15 +348,19 @@ export function yearsBetween(from: StoryDateParts, to: StoryDateParts, calendar?
 // ---- Explaining and writing dates ---------------------------------------------------
 
 /** What is wrong with a date that seems to use a calendar month. Null if it does not seem to. */
-function explainMonthDate(text: string, eras: Era[], calendar: Calendar): string | null {
+function explainMonthDate(text: string, eras: Era[], names: MonthNames): string | null {
   const tidy = text.replace(/\s+/g, ' ');
   const lower = tidy.toLowerCase();
   const lead = DAY_FIRST.exec(lower);
   const afterDay = lead ? lower.slice(lead[0].length) : lower;
-  const index = monthAtStart(afterDay, calendar);
-  if (index >= 0) {
-    const month = calendar.months[index];
-    let rest = afterDay.slice(month.name.length).replace(/^[\s,]+/, '');
+  const found = monthAtStart(afterDay, names.names);
+  if (found) {
+    const start = lead ? lead[0].length : 0;
+    // An everyday month is named as the writer wrote it, in whatever language that was.
+    const month = names.everyday
+      ? { ...names.months[found.index], name: tidy.slice(start, start + found.name.length) }
+      : names.months[found.index];
+    let rest = afterDay.slice(found.name.length).replace(/^[\s,.]+/, '');
     let day = lead ? Number(lead[1]) : 0;
     const trailing = lead ? null : DAY_AFTER_MONTH.exec(rest);
     if (trailing) {
@@ -248,7 +375,7 @@ function explainMonthDate(text: string, eras: Era[], calendar: Calendar): string
     if (!/\d/.test(splitEra(rest, eras).rest)) return t('Add a year, as in "{month} 312".', { month: month.name });
     return null;
   }
-  if (lead) {
+  if (lead && !names.everyday) {
     const unknown = /^(\S.*?),?\s+(?:year\s+)?-?\d+$/i.exec(tidy.slice(lead[0].length));
     if (unknown) return t('"{name}" is not a month in this project\'s calendar.', { name: unknown[1] });
   }
@@ -257,14 +384,13 @@ function explainMonthDate(text: string, eras: Era[], calendar: Calendar): string
 
 /** Says why a date cannot be ordered, in words that lead to a fix, in the interface language. */
 export function explainStoryDate(input: string, eras: Era[] = [], calendar?: Calendar | null): string {
-  const text = input.trim();
-  if (!text) return t('No date is set.');
+  const trimmed = input.trim();
+  if (!trimmed) return t('No date is set.');
+  const text = withoutWeekday(trimmed) ?? trimmed;
   const months = calendarFor(eras, calendar);
   const hasMonths = !!months?.months.length;
-  if (months && hasMonths) {
-    const problem = explainMonthDate(text, eras, months);
-    if (problem) return problem;
-  }
+  const problem = explainMonthDate(text, eras, monthNamesFor(months));
+  if (problem) return problem;
   const eraLike = /^(\S.*?)\s+-?\d[\d\-/.]*$/.exec(text) ?? /^-?\d[\d\-/.]*\s+(\S.*)$/.exec(text);
   const candidate = eraLike?.[1];
   // Era names are capitalized, which keeps "sometime in 312" out of this message.
